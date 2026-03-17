@@ -1,0 +1,48 @@
+required fields
+1)work type
+  (i)select work type -> stc-panel or stc-battery
+    if on bill or solar proposal there is mention of 
+    solar panels
+      And battery
+      Tick stc panel and stc battery
+      If only battery.tick stc battery
+      If only solar panel
+      Tick stc solar
+
+2)system information 
+(i) connected type -> if NMI is there then always on-grid
+
+3) summary 
+ (i)trade mode ->  osw credit or cash
+ (ii) PO reference -> this wiil always be ddmmyyyy+counter (i have already implemented in my current sytem)
+
+
+4) installation address 
+   (i) story --> if mentioned in bills or pdf then we will take that value if not always take "single"
+   (ii) battery installation type -> if not mentioned then new 
+   (iii) battery installation location -> if in the proposal there is "fire alarm or Bollards”choose indoor ,if no these ,then choose outdoor
+   (iv) if  in the proposal or any docs(uploaded) there is no panels,choose install "AC coupled battery system" ,if there is panels ,choose "install battery with new hybrid inverter" ,if there is no inverter in the proposal and but there is  battery in it ,
+         choose "install battery with existing hybird inverter"
+   (v) has the solar panel been installed -> if work type is only "STC-battery" then "yes" . if  only "STC-pannel" or both then "No".
+   (v) additional information -> ai has to be pretyy smart in this to see if their is additional information for installation 
+ 
+ 
+5)owner details 
+  (i) property type -> residential , school , commercial
+  (ii) owner type -> individual , corporate body, government body, trustee
+       first Name , surname,mobile, email (required) 
+
+6) Job schedule
+   (i) scheduled date of install -> it hast to be always +1 day from today's date 
+
+7) equipment details
+ (i) inverter -> first search by manufacturer, then series, model and quantity(qty, by default quantity is 1) 
+ (ii) battery -> first search by manufacturer, then series, model and quantity(qty, by default quantity is 1) 
+
+8) installer information -> 
+   (i) installer -> if installer name is present in uploads then try to search it. but by default will be "David McVernon"
+   (ii) job site instruction for the installer -> if present on the bill or proposals we will then put it if not leave it (not required field)
+   (iii) need to installer to pickup the order -> (not required field) if yes then 
+     (iii)(a) pick up address -> osw or other
+     (iii)(b) pick up reference (not required)
+     (iii)(c) select pick up address 

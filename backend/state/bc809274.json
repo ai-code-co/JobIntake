@@ -1,0 +1,10 @@
+{
+  "job_id": "bc809274",
+  "status": "prefilled",
+  "ts": 1773656916.189898,
+  "message": "Extraction completed. Suggestions are ready.",
+  "source_files": [
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\Backend\\temp\\bc809274_Solar Proposal for Steven John Baumann at 46 First Street 2752 NSW (7nXgmiWSag).pdf"
+  ],
+  "result_file": "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\Backend\\state\\job_intake_results\\bc809274.json"
+}

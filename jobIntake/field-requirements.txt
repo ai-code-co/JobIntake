@@ -1,0 +1,170 @@
+Job Intake Form Field Requirements (BridgeSelect-aligned)
+Source: src/components/JobIntakeForm.tsx + Connector API.pdf + bridge_select_create_edit_job_field_reference.docx
+
+Job / jt / Scheme
+- Solar PV -> jt = 1 -> STC
+- Solar PV + Battery -> jt = 1 -> STC + BSTC
+- Battery only -> jt = 6 -> BSTC / PRC
+
+Notes
+- Work Type is removed from visible UI and removed from required validation.
+- Legacy AI payload key `workType` is tolerated and ignored.
+- PRC fields are conditional: not required unless PRC path is used (i.e., PRC values entered).
+
+------------------------------------------------------------
+Always Required (all destinations)
+- Job type
+- First name
+- Last name
+- Email
+- Mobile
+- Street address
+- Suburb
+- State
+- Postcode
+- Installer identifier (CECID / licence)
+
+BridgeSelect Destination Required
+- CRM ID
+- Installation email (required for Solar PV and Solar PV + Battery)
+
+Y if address submitted to BSEL (BridgeSelect address fields - always required when destination is BridgeSelect):
+- Owner type
+- All address fields (street, suburb, state, postcode, coordinates) - already in base required
+
+Y if address type = Postal:
+- PO Box number
+- Postal delivery type
+
+Y if owner type = Company:
+- Organisation name
+
+Optional but supported for BridgeSelect
+- Customer latitude / longitude
+- Installation latitude / longitude
+(If missing, backend attempts Nominatim geocoding. If geocoding fails, backend returns field errors for manual coordinate entry.)
+
+------------------------------------------------------------
+Installation address (ipa / ipc / ipra / isb / ist / ilat / ilng) and siad
+- siad (Same installation address as customer): Non-required toggle in Section 7 (Schedule & Staff). Default Off (No). When On (Yes), the seven installation address fields are hidden and installation is treated as customer address; payload siad = "Yes". When Off (No), the installation address fields are shown and user can enter a different address; payload siad = "No" when filled.
+- Frontend fields (shown only when siad is No): Installation address (ipa), Installation street name (ipra), Installation suburb (isb), Installation state (ist), Installation postcode (ipc), Installation latitude (ilat), Installation longitude (ilng).
+- Required if installation address (ipa) is filled: ipc, ipra, isb, ist are required and show asterisk when destination is BridgeSelect.
+- ilat / ilng: When a separate installation address is provided, backend fills them via geocode only (never copied from customer). If geocoding fails, backend returns field errors; user may enter coordinates manually.
+
+------------------------------------------------------------
+Job-specific Required Rules
+
+1) Solar PV (jt=1, STC)
+Required:
+- Base required fields (above)
+- Panel system size (kW)
+- Connected type
+- (BridgeSelect destination) CRM ID, Installer ID, Installation email
+
+Optional:
+- NMI, electricity retailer, account holder name, bill issue date
+- Panel manufacturer/model/quantity
+- Inverter manufacturer/series/model/quantity
+- All battery fields
+- PRC fields
+
+2) Solar PV + Battery (jt=1, STC + BSTC)
+Required:
+- Solar PV required fields
+- Battery manufacturer
+- Battery model
+- Battery quantity
+- Battery capacity
+- Battery installation location
+- BSTC count
+- Is BSTC job
+- BSTC out-of-pocket after discount
+- VPP capable
+- Retailer involved in battery procurement/install
+- Room behind battery wall
+- Adding capacity to existing battery stack
+- If adding capacity = Yes:
+  - Existing nominal output (kWh)
+  - Existing usable output (kWh)
+
+Optional:
+- PRC fields (unless PRC path is used)
+
+3) Battery only (jt=6, BSTC / PRC)
+Required:
+- Base required fields
+- Battery manufacturer
+- Battery model
+- Battery quantity
+- Battery capacity
+- Battery installation location
+- Full BSTC set:
+  - BSTC count
+  - Is BSTC job
+  - BSTC out-of-pocket after discount
+  - VPP capable
+  - Retailer involved in battery procurement/install
+  - Room behind battery wall
+  - Adding capacity to existing battery stack
+  - If adding capacity = Yes:
+    - Existing nominal output (kWh)
+    - Existing usable output (kWh)
+
+Conditional PRC Required (only when PRC path is used):
+- PRC distributor area network
+- Battery physical location
+- PRC BESS1 count
+- Is BESS1 job
+- PRC BESS1 out-of-pocket after discount
+- PRC activity type
+- If Is BESS2 job = Yes:
+  - PRC BESS2 count
+  - PRC BESS2 out-of-pocket after discount
+
+------------------------------------------------------------
+Section-wise summary
+
+Section 1: Job Type
+- Required: Job type
+- Required when BridgeSelect: Owner type
+- Required when Owner type = Company: Organisation name
+- Optional: Job category (Retail, Builder, Embedded Network)
+
+Section 2: Customer / Owner Details
+- Required: First name, Last name, Email, Mobile
+- Optional: Customer full name, Phone, GST registered
+
+Section 3: Installation Address
+- Required: Street address, Suburb, State, Postcode
+- Optional: Address type (Physical/Postal), Unit type/number, PO Box number, Postal delivery type
+- Optional: Full installation address, Installation unit type/number
+- Optional: Property name, Storey type, Story/floor count
+- Optional: Coordinates, Property type
+
+Section 4: Utility / Bill Details
+- Optional: NMI, Electricity retailer, Account holder name, Bill issue date
+
+Section 5: System Details
+- Solar required only for solar jobs: Panel system size (kW)
+- Battery required only for battery jobs: battery core fields listed above
+
+Section 6: Installation Details
+- Solar required: Connected type
+- Battery required: Battery installation location + BSTC fields
+- PRC conditional required when PRC path is used
+
+Section 7: Schedule / Assignment
+- Required: Installer identifier (CECID / licence)
+- BridgeSelect solar jobs required: Installation email
+- Optional: Installation date, preferred install date, installation phone
+- Optional: Installer/designer/electrician/ops fields
+
+Section 8: Logistics / Pickup Details
+- Optional
+
+Section 9: References / Internal Fields
+- BridgeSelect required: CRM ID
+- Optional: PO number, order reference, proposal number, retailer entity, STC trader, finance/rebate field
+
+Section 10: Document Uploads
+- Optional

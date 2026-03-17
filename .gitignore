@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+
+# Build / output
+dist
+dist-ssr
+*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Backend (Python)
+Backend/.venv/
+Backend/venv/
+Backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+Backend/*_results.json
+Backend/extraction_results.json
+*.egg-info/
+.eggs/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Reference / local-only assets (not needed in repo)
+applicatn-2.html
+bridge_select_create_edit_job_field_reference.docx
+Connector API.pdf
+image.png
+loadDetails-4.html
+location-1.html
+nginline_ausgrid(2pg).js
+ngmain_ausgrid(4pg).js
+ngpolyfills_ausgrid(3pg).js
+serviceSelection-3.html
+view-source_https___idoportal.ausgrid.com.au_#_existingbelow100_location_new_0(1pg).html
