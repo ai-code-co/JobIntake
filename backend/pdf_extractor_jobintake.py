@@ -97,6 +97,17 @@ def _extract_address_parts(address: str) -> Tuple[str, str, str]:
     return suburb, state, postcode
 
 
+def _parse_street_number_name(street_address: str) -> Tuple[str, str]:
+    """Parse '46 First Street' -> ('46', 'First Street'). Returns ('', '') if no leading number."""
+    normalized = _normalize_text(street_address)
+    if not normalized:
+        return "", ""
+    match = re.match(r"^(\d+[A-Za-z]?)\s+(.+)$", normalized)
+    if match:
+        return match.group(1).strip(), match.group(2).strip()
+    return "", normalized
+
+
 def _build_prompt(text: str) -> str:
     return f"""You are extracting information for a Job Intake form from uploaded documents.
 
@@ -106,6 +117,8 @@ Rules:
 3. Keep manufacturer/model/series exact where possible.
 4. For list values, return arrays; otherwise return strings.
 5. Do not invent values.
+6. For address.street_address use the full street line (e.g. "46 First Street") so number and name can be parsed.
+7. For utility.electricity_distributor use the network distributor where work is carried out if mentioned (e.g. Endeavour Energy, Ausgrid).
 
 Input text:
 ---
@@ -463,3 +476,143 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
         if not (isinstance(value, str) and not value.strip())
     }
     return cleaned, unmapped_notes
+
+
+def map_ai_payload_to_ccew(ai_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Map the same AI extraction payload to CCEW form fields.
+    Returns only keys that can be filled from the solar proposal (Yes/Partially in the CCEW table).
+    Frontend merges into CCEWForm state on "Apply suggestions".
+    """
+    out: Dict[str, Any] = {}
+    customer = _safe_get(ai_data, "customer", default={}) or {}
+    address = _safe_get(ai_data, "address", default={}) or {}
+    utility = _safe_get(ai_data, "utility", default={}) or {}
+    system = _safe_get(ai_data, "system", default={}) or {}
+    installation = _safe_get(ai_data, "installation", default={}) or {}
+    operations = _safe_get(ai_data, "operations", default={}) or {}
+
+    full_address = _normalize_text(_safe_get(address, "full_address"))
+    street_address = _normalize_text(_safe_get(address, "street_address"))
+    street_line = street_address or full_address
+    suburb = _normalize_text(_safe_get(address, "suburb"))
+    state = _normalize_text(_safe_get(address, "state")).upper()
+    postcode = _normalize_text(_safe_get(address, "postcode"))
+    if not suburb or not state or not postcode:
+        suburb, state, postcode = _extract_address_parts(full_address or street_address)
+
+    street_number, street_name = _parse_street_number_name(street_line)
+    if street_number:
+        out["installationStreetNumber"] = street_number
+    if street_name:
+        out["installationStreetName"] = street_name
+    if suburb:
+        out["installationSuburb"] = suburb
+    if state:
+        out["installationState"] = state
+    if postcode:
+        out["installationPostCode"] = postcode
+    if full_address or street_line:
+        prop_name = full_address or f"{street_line}, {suburb} {state} {postcode}".strip(", ")
+        out["installationPropertyName"] = prop_name
+
+    out["customerSameAsInstallation"] = True
+    first_name = _normalize_text(_safe_get(customer, "first_name"))
+    last_name = _normalize_text(_safe_get(customer, "last_name"))
+    full_name = _normalize_text(_safe_get(customer, "full_name"))
+    if not first_name and not last_name and full_name:
+        parts = full_name.split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+    if first_name:
+        out["customerFirstName"] = first_name
+    if last_name:
+        out["customerLastName"] = last_name
+    if street_number:
+        out["customerStreetNumber"] = street_number
+    if street_name:
+        out["customerStreetName"] = street_name
+    if suburb:
+        out["customerSuburb"] = suburb
+    if state:
+        out["customerState"] = state
+    if postcode:
+        out["customerPostCode"] = postcode
+    email = _normalize_text(_safe_get(customer, "email"))
+    if email:
+        out["customerEmail"] = email
+        out["ownerEmail"] = email
+    mobile = _normalize_text(_safe_get(customer, "mobile"))
+    if mobile:
+        out["customerMobileNo"] = mobile
+
+    property_type = _normalize_text(_safe_get(address, "property_type")).lower()
+    storey = _normalize_text(_safe_get(installation, "storey_type")).lower()
+    if "commercial" in property_type or "business" in property_type:
+        out["typeCommercial"] = True
+    elif "industrial" in property_type:
+        out["typeIndustrial"] = True
+    elif "rural" in property_type:
+        out["typeRural"] = True
+    elif "mixed" in property_type:
+        out["typeMixedDevelopment"] = True
+    else:
+        out["typeResidential"] = True
+    if storey and any(t in storey for t in ("multi", "2", "3", "4", "5")):
+        out["typeResidential"] = True
+
+    panel = _first_item(_safe_get(system, "panel", default=[]))
+    inverter = _first_item(_safe_get(system, "inverter", default=[]))
+    battery = _first_item(_safe_get(system, "battery", default=[]))
+    has_solar = any(_normalize_text(panel.get(k)) for k in ("manufacturer", "model", "quantity", "system_size_kw"))
+    has_inverter = any(_normalize_text(inverter.get(k)) for k in ("manufacturer", "model", "series", "quantity"))
+    has_battery = any(_normalize_text(battery.get(k)) for k in ("manufacturer", "model", "series", "quantity", "capacity_kwh"))
+    if has_solar or has_inverter:
+        out["workAdditionAlteration"] = True
+    if has_battery and not has_solar and not has_inverter:
+        out["workNewWork"] = True
+    elif has_solar or has_inverter:
+        out["workAdditionAlteration"] = True
+
+    if has_inverter or (has_solar and inverter):
+        out["equipmentGenerationChecked"] = True
+        rating = _normalize_text(inverter.get("system_size_kw") or panel.get("system_size_kw"))
+        if not rating and inverter.get("model"):
+            rating = "5kW"
+        if rating:
+            out["equipmentGenerationRating"] = rating
+        qty = _normalize_text(inverter.get("quantity")) or _normalize_text(panel.get("quantity")) or "1"
+        out["equipmentGenerationNumber"] = qty
+        particulars = _normalize_text(inverter.get("model")) or _normalize_text(panel.get("model"))
+        if particulars:
+            out["equipmentGenerationParticulars"] = particulars
+    if has_battery:
+        out["equipmentStorageChecked"] = True
+        cap = _normalize_text(battery.get("capacity_kwh"))
+        if cap:
+            out["equipmentStorageRating"] = cap
+        qty = _normalize_text(battery.get("quantity")) or "1"
+        out["equipmentStorageNumber"] = qty
+        model = _normalize_text(battery.get("model"))
+        if model:
+            out["equipmentStorageParticulars"] = model
+
+    energy_provider = _normalize_text(_safe_get(utility, "electricity_distributor")) or _normalize_text(
+        _safe_get(utility, "electricity_retailer")
+    )
+    if energy_provider:
+        out["energyProvider"] = energy_provider
+
+    install_date = _parse_iso_date(_safe_get(installation, "installation_date"))
+    if install_date:
+        out["testCompletedOn"] = install_date
+
+    installer_name = _normalize_text(_safe_get(operations, "installer_name")) or _normalize_text(
+        _safe_get(operations, "electrician_name")
+    ) or _normalize_text(_safe_get(operations, "designer_name"))
+    if installer_name:
+        parts = installer_name.strip().split(None, 1)
+        out["installerFirstName"] = parts[0]
+        out["installerLastName"] = parts[1] if len(parts) > 1 else ""
+
+    return out

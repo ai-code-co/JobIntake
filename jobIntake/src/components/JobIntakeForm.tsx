@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import CCEWForm from "./CCEWForm";
 
 const sectionTitles = [
   "Job Type",
@@ -179,6 +180,7 @@ interface ExtractionResultPayload {
   status: string;
   source_files: string[];
   mapped_form_suggestions: MappedSuggestions;
+  ccew_suggestions?: Record<string, unknown>;
   raw_extracted_data: Record<string, unknown>;
   unmapped_notes?: string[];
 }
@@ -780,12 +782,14 @@ export default function JobIntakeForm() {
   const submissionStatusRef = useRef<HTMLDivElement>(null);
   const [touchedFields, setTouchedFields] = useState<Set<keyof FormState>>(new Set());
   const [currentSection, setCurrentSection] = useState("section-1");
+  const [activeView, setActiveView] = useState<"form" | "ccew">("form");
   const [supportingDocsFiles, setSupportingDocsFiles] = useState<File[]>([]);
   const [extractionJobId, setExtractionJobId] = useState<string>("");
   const [extractionStatus, setExtractionStatus] = useState<ExtractionJobStatusType>("idle");
   const [extractionMessage, setExtractionMessage] = useState<string>("");
   const [extractionError, setExtractionError] = useState<string>("");
   const [mappedSuggestions, setMappedSuggestions] = useState<MappedSuggestions | null>(null);
+  const [ccewSuggestions, setCcewSuggestions] = useState<Record<string, unknown> | null>(null);
   const [suggestionSourceData, setSuggestionSourceData] = useState<Record<string, unknown> | null>(null);
   const [appliedSuggestionFields, setAppliedSuggestionFields] = useState<Set<SuggestibleFieldKey>>(new Set());
   const requiredFieldRules = useMemo(() => getRequiredFieldRules(form, destination), [form, destination]);
@@ -1081,6 +1085,7 @@ export default function JobIntakeForm() {
       setExtractionMessage("Uploading supporting documents.");
       setExtractionStatus("uploading");
       setMappedSuggestions(null);
+      setCcewSuggestions(null);
       setSuggestionSourceData(null);
       setAppliedSuggestionFields(new Set());
 
@@ -1109,6 +1114,7 @@ export default function JobIntakeForm() {
 
       const result = await fetchJobIntakeResult(queued.job_id);
       setMappedSuggestions(result.mapped_form_suggestions || {});
+      setCcewSuggestions(result.ccew_suggestions ?? null);
       setSuggestionSourceData(result.raw_extracted_data || {});
       setExtractionStatus("prefilled");
       setExtractionMessage("Extraction complete. Review and apply suggestions.");
@@ -1190,6 +1196,7 @@ export default function JobIntakeForm() {
     }
 
     setMappedSuggestions(null);
+    setCcewSuggestions(null);
     setSuggestionSourceData(null);
     setAppliedSuggestionFields(new Set());
     setExtractionStatus("idle");
@@ -1332,10 +1339,61 @@ export default function JobIntakeForm() {
                     <div className="text-xs text-white/60">Sync Mode</div>
                     <div className="mt-2 mr-5 text-sm font-semibold">Manual Push</div>
                   </div>
+                  <div className="rounded-2xl bg-white/10 p-3 backdrop-blur-sm">
+                    <div className="text-xs text-white/60">CCEW</div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView("ccew")}
+                      className="mt-2 w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                    >
+                      Open CCEW
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
+            {activeView === "ccew" ? (
+              <CCEWForm
+                initialValues={{
+                  firstName: form.firstName,
+                  lastName: form.lastName,
+                  email: form.email,
+                  mobile: form.mobile,
+                  streetAddress: form.streetAddress,
+                  suburb: form.suburb,
+                  state: form.state,
+                  postcode: form.postcode,
+                  propertyName: form.propertyName,
+                  installationAddress: form.installationAddress,
+                  installationStreetName: form.installationStreetName,
+                  installationSuburb: form.installationSuburb,
+                  installationState: form.installationState,
+                  installationPostcode: form.installationPostcode,
+                  streetNumberRmb: form.streetNumberRmb,
+                  nmi: form.nmi,
+                  propertyType: form.propertyType,
+                  installerName: form.installerName,
+                  installerId: form.installerId,
+                  panelSystemSize: form.panelSystemSize,
+                  panelManufacturer: form.panelManufacturer,
+                  panelModel: form.panelModel,
+                  inverterManufacturer: form.inverterManufacturer,
+                  inverterModel: form.inverterModel,
+                  batteryManufacturer: form.batteryManufacturer,
+                  batteryModel: form.batteryModel,
+                  batteryCapacity: form.batteryCapacity,
+                  batteryQuantity: form.batteryQuantity,
+                  electricityRetailer: form.electricityRetailer,
+                }}
+                ccewSuggestions={ccewSuggestions}
+                onClearCcewSuggestions={() => setCcewSuggestions(null)}
+                onBack={() => setActiveView("form")}
+              />
+            ) : null}
+
+            {activeView === "form" ? (
+            <>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Upload Supporting Documents</h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -1729,6 +1787,8 @@ export default function JobIntakeForm() {
                 </button>
               </div>
             </div>
+            </>
+            ) : null}
 
             {toast.show && (
               <div

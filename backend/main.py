@@ -19,7 +19,7 @@ from bridgeselect_bot import create_job as bridgeselect_create_job
 from bridgeselect_connector import submit_create_or_edit
 from ausgrid_bot import fill_location as ausgrid_fill_location
 from pdf_extractor import extract_text
-from pdf_extractor_jobintake import extract_jobintake_from_multiple_pdfs, map_ai_payload_to_form
+from pdf_extractor_jobintake import extract_jobintake_from_multiple_pdfs, map_ai_payload_to_form, map_ai_payload_to_ccew
 
 
 app = FastAPI()
@@ -204,6 +204,7 @@ def _extract_job_intake_from_files(job_id: str, file_paths: List[str]) -> dict:
     print(f"[{job_id}] [job-intake] Running structured extraction")
     raw_extracted_data = extract_jobintake_from_multiple_pdfs(pdf_texts)
     mapped_form_suggestions, unmapped_notes = map_ai_payload_to_form(raw_extracted_data)
+    ccew_suggestions = map_ai_payload_to_ccew(raw_extracted_data)
 
     # Auto-fill PO number from counter (DDMMYYYY-n); overwrites AI-extracted if any
     po_ref = _next_po_reference()
@@ -217,6 +218,7 @@ def _extract_job_intake_from_files(job_id: str, file_paths: List[str]) -> dict:
         "source_files": file_paths,
         "raw_extracted_data": raw_extracted_data,
         "mapped_form_suggestions": mapped_form_suggestions,
+        "ccew_suggestions": ccew_suggestions,
         "unmapped_notes": unmapped_notes,
     }
     run_file, latest_file = _save_job_intake_payload(job_id, payload)
