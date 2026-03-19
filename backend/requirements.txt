@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 pdfplumber
+pypdf
 openai
 playwright
 python-dotenv

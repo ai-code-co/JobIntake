@@ -11,7 +11,7 @@ import uuid
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from ai_parser import extract_from_multiple_pdfs
 from greendeal_bot_org import create_job as greendeal_create_job
@@ -20,6 +20,7 @@ from bridgeselect_connector import submit_create_or_edit
 from ausgrid_bot import fill_location as ausgrid_fill_location
 from pdf_extractor import extract_text
 from pdf_extractor_jobintake import extract_jobintake_from_multiple_pdfs, map_ai_payload_to_form, map_ai_payload_to_ccew
+from ccew_pdf_filler import fill_ccew_pdf
 
 
 app = FastAPI()
@@ -398,6 +399,26 @@ def job_intake_result(job_id: str):
     if not path.exists():
         return {"job_id": job_id, "status": "not_found", "message": "Extraction result not found."}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.post("/ccew/generate-pdf")
+async def ccew_generate_pdf(payload: dict):
+    """
+    Fill the CCEW template PDF with the given form state and return the PDF.
+    Body: JSON matching CCEW form state keys.
+    """
+    try:
+        pdf_bytes = fill_ccew_pdf(payload)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="CCEW-filled.pdf"'},
+        )
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(exc)},
+        )
 
 
 @app.post("/ausgrid/fill")

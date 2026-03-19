@@ -1,32 +1,32 @@
 {
-  "job_id": "8d141bc5",
-  "created_at": "2026-03-17T17:34:10.749170",
+  "job_id": "74fa6fd3",
+  "created_at": "2026-03-19T17:04:24.102479",
   "status": "prefilled",
   "source_files": [
-    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\8d141bc5_Solar Proposal for Steven John Baumann at 46 First Street 2752 NSW (7nXgmiWSag).pdf"
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\74fa6fd3_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
   ],
   "raw_extracted_data": {
     "customer": {
-      "full_name": "Steven John Baumann",
-      "first_name": "Steven",
-      "last_name": "Baumann",
-      "email": "steven.jaye.baumann@hotmail.com",
-      "mobile": "0408493718",
+      "full_name": "Slawomir Postek",
+      "first_name": "Slawomir",
+      "last_name": "Postek",
+      "email": "slav_p@hotmail.com",
+      "mobile": "0412417344",
       "phone": "0451 886 798",
-      "owner_type": ""
+      "owner_type": "Hexagon Energy Pty Ltd"
     },
     "address": {
-      "full_address": "46 First Street, Warragamba NSW 2752",
-      "street_address": "46 First Street",
-      "suburb": "Warragamba",
-      "state": "NSW",
-      "postcode": "2752",
+      "full_address": "4 Jardine Court Sandhurst VIC 3977",
+      "street_address": "4 Jardine Court",
+      "suburb": "Sandhurst",
+      "state": "VIC",
+      "postcode": "3977",
       "property_type": ""
     },
     "utility": {
       "nmi": "",
       "electricity_retailer": "",
-      "electricity_distributor": "Endeavour Energy",
+      "electricity_distributor": "United Energy Distribution",
       "account_holder_name": "",
       "bill_issue_date": ""
     },
@@ -61,10 +61,10 @@
     },
     "operations": {
       "installer_name": "",
-      "designer_name": "",
+      "designer_name": "Nick C",
       "electrician_name": "",
       "operations_contact": "",
-      "operations_email": ""
+      "operations_email": "info@sun-vault.com.au"
     },
     "logistics": {
       "pickup_location": "",
@@ -83,27 +83,28 @@
     },
     "bstc": {
       "bstc_count": "420",
-      "bstc_out_of_pocket": ""
+      "bstc_out_of_pocket": "-$15,540.00"
     },
     "notes": ""
   },
   "mapped_form_suggestions": {
-    "firstName": "Steven",
-    "lastName": "Baumann",
-    "customerFullName": "Steven John Baumann",
-    "email": "steven.jaye.baumann@hotmail.com",
-    "mobile": "0408493718",
+    "firstName": "Slawomir",
+    "lastName": "Postek",
+    "customerFullName": "Slawomir Postek",
+    "email": "slav_p@hotmail.com",
+    "mobile": "0412417344",
     "phone": "0451 886 798",
-    "streetAddress": "46 First Street",
-    "suburb": "Warragamba",
-    "state": "NSW",
-    "postcode": "2752",
-    "installationAddress": "46 First Street",
-    "installationSuburb": "Warragamba",
-    "installationState": "NSW",
-    "installationPostcode": "2752",
-    "electricityRetailer": "Endeavour Energy",
-    "accountHolderName": "Steven John Baumann",
+    "ownerType": "Individual",
+    "streetAddress": "4 Jardine Court",
+    "suburb": "Sandhurst",
+    "state": "VIC",
+    "postcode": "3977",
+    "installationAddress": "4 Jardine Court",
+    "installationSuburb": "Sandhurst",
+    "installationState": "VIC",
+    "installationPostcode": "3977",
+    "electricityRetailer": "United Energy Distribution",
+    "accountHolderName": "Slawomir Postek",
     "inverterIncluded": true,
     "inverterManufacturer": "Hoymiles",
     "inverterSeries": "HYS",
@@ -119,26 +120,29 @@
     "backupProtectionRequired": "Yes",
     "storeyType": "Single story",
     "bstcCount": "420",
-    "poNumber": "17032026-2"
+    "bstcDiscountOutOfPocket": "-$15,540.00",
+    "designerName": "Nick C",
+    "operationsEmail": "info@sun-vault.com.au",
+    "poNumber": "19032026-1"
   },
   "ccew_suggestions": {
-    "installationStreetNumber": "46",
-    "installationStreetName": "First Street",
-    "installationSuburb": "Warragamba",
-    "installationState": "NSW",
-    "installationPostCode": "2752",
-    "installationPropertyName": "46 First Street, Warragamba NSW 2752",
+    "installationStreetNumber": "4",
+    "installationStreetName": "Jardine Court",
+    "installationSuburb": "Sandhurst",
+    "installationState": "VIC",
+    "installationPostCode": "3977",
+    "installationPropertyName": "4 Jardine Court Sandhurst VIC 3977",
     "customerSameAsInstallation": true,
-    "customerFirstName": "Steven",
-    "customerLastName": "Baumann",
-    "customerStreetNumber": "46",
-    "customerStreetName": "First Street",
-    "customerSuburb": "Warragamba",
-    "customerState": "NSW",
-    "customerPostCode": "2752",
-    "customerEmail": "steven.jaye.baumann@hotmail.com",
-    "ownerEmail": "steven.jaye.baumann@hotmail.com",
-    "customerMobileNo": "0408493718",
+    "customerFirstName": "Slawomir",
+    "customerLastName": "Postek",
+    "customerStreetNumber": "4",
+    "customerStreetName": "Jardine Court",
+    "customerSuburb": "Sandhurst",
+    "customerState": "VIC",
+    "customerPostCode": "3977",
+    "customerEmail": "slav_p@hotmail.com",
+    "ownerEmail": "slav_p@hotmail.com",
+    "customerMobileNo": "0412417344",
     "typeResidential": true,
     "workAdditionAlteration": true,
     "equipmentGenerationChecked": true,
@@ -149,7 +153,9 @@
     "equipmentStorageRating": "10.24",
     "equipmentStorageNumber": "5",
     "equipmentStorageParticulars": "PLPA-L1-10K2",
-    "energyProvider": "Endeavour Energy"
+    "energyProvider": "United Energy Distribution",
+    "installerFirstName": "Nick",
+    "installerLastName": "C"
   },
   "unmapped_notes": []
 }

@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import CCEWForm from "./CCEWForm";
+import PageSidebar, { type PageSidebarSection } from "./PageSidebar";
 
 const sectionTitles = [
   "Job Type",
@@ -23,6 +24,23 @@ const sectionTitles = [
   "Logistics",
   "References",
   "Documents",
+];
+
+const jobIntakeSidebarSections: PageSidebarSection[] = sectionTitles.map((label, index) => ({
+  id: `section-${index + 1}`,
+  label,
+}));
+
+const ccewSidebarSections: PageSidebarSection[] = [
+  { id: "ccew-section-1", label: "Installation Address" },
+  { id: "ccew-section-2", label: "Customer Details" },
+  { id: "ccew-section-3", label: "Installation Details" },
+  { id: "ccew-section-4", label: "Details of Equipment" },
+  { id: "ccew-section-5", label: "Meters" },
+  { id: "ccew-section-6", label: "Installers License Details" },
+  { id: "ccew-section-7", label: "Test Report" },
+  { id: "ccew-section-8", label: "Testers License Details" },
+  { id: "ccew-section-9", label: "Submit CCEW" },
 ];
 
 type FormElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -809,37 +827,70 @@ export default function JobIntakeForm() {
   }, [toast.show]);
 
   useEffect(() => {
-    const sections = document.querySelectorAll('section[id^="section-"]');
+    const selector = activeView === "ccew" ? 'section[id^="ccew-section-"]' : 'section[id^="section-"]';
+    const sections = Array.from(document.querySelectorAll<HTMLElement>(selector));
     if (sections.length === 0) return;
 
-    const viewportTop = 0;
-    const viewportBottom = window.innerHeight;
-
     const updateActiveSection = () => {
+      const viewportTop = 0;
+      const viewportBottom = window.innerHeight;
+      const anchorY = Math.round(viewportBottom * 0.35);
+      const scrollBottom = window.scrollY + window.innerHeight;
+      const docHeight = document.documentElement.scrollHeight;
+
+      // When user reaches page end, force-highlight the last section.
+      if (docHeight - scrollBottom <= 24) {
+        const lastId = sections[sections.length - 1]?.id;
+        if (lastId) {
+          setCurrentSection(lastId);
+          return;
+        }
+      }
+
+      let anchorMatchId: string | null = null;
       let bestId: string | null = null;
       let bestDistance = Infinity;
+
       sections.forEach((el) => {
         const rect = el.getBoundingClientRect();
         const inView = rect.bottom > viewportTop && rect.top < viewportBottom;
-        if (inView) {
-          const distance = Math.abs(rect.top - viewportTop);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestId = el.id;
-          }
+        if (!inView) return;
+
+        // Prefer the section crossing the anchor line in viewport.
+        if (rect.top <= anchorY && rect.bottom >= anchorY) {
+          anchorMatchId = el.id;
+        }
+
+        // Fallback to nearest section top to the anchor line.
+        const distance = Math.abs(rect.top - anchorY);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestId = el.id;
         }
       });
-      if (bestId) setCurrentSection(bestId);
+
+      const nextId = anchorMatchId ?? bestId;
+      if (nextId) setCurrentSection(nextId);
     };
 
-    const observer = new IntersectionObserver(updateActiveSection, {
+    // Run once on mount/view-switch for correct initial highlight.
+    updateActiveSection();
+
+    const observer = new IntersectionObserver(() => updateActiveSection(), {
       root: null,
       rootMargin: "-80px 0px -50% 0px",
       threshold: [0, 0.1, 0.5, 1],
     });
     sections.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, [activeView]);
 
   const handleChange = (event: ChangeEvent<FormElement>) => {
     const { name, value } = event.target;
@@ -1254,46 +1305,23 @@ export default function JobIntakeForm() {
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="mx-auto max-w-7xl p-6 lg:p-8">
         <form noValidate onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:sticky xl:top-6">
-            <div className="mb-6">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Operations Portal</div>
-              <h1 className="mt-2 text-2xl font-bold">Create New Job</h1>
-              <p className="mt-2 text-sm text-slate-500">Single master job intake for Solar and Battery, designed to sync to GreenDeal and BridgeSelect.</p>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              {sectionTitles.map((item, index) => {
-                const id = `section-${index + 1}`;
-                const active = currentSection === id;
-                return (
-                  <a
-                    key={item}
-                    href={`#${id}`}
-                    onClick={() => setCurrentSection(id)}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-3 transition ${active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
-                  >
-                    <span
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}
-                    >
-                      {index + 1}
-                    </span>
-                    <span>{item}</span>
-                  </a>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-slate-800">Progress</div>
-                <div className="text-xs font-semibold text-slate-500">{progressPercent}%</div>
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-slate-200">
-                <div className="h-2 rounded-full bg-slate-900 transition-all" style={{ width: `${progressPercent}%` }} />
-              </div>
-              <p className="mt-2 text-xs text-slate-500">{completedCount} important fields completed</p>
-            </div>
-          </aside>
+          <PageSidebar
+            badge={activeView === "form" ? "Operations Portal" : undefined}
+            title={activeView === "form" ? "Create New Job" : "CCEW"}
+            subtitle={
+              activeView === "form"
+                ? "Single master job intake for Solar and Battery, designed to sync to GreenDeal and BridgeSelect."
+                : "Certificate Compliance Electrical Work – fill and download the PDF."
+            }
+            sections={activeView === "form" ? jobIntakeSidebarSections : ccewSidebarSections}
+            currentSection={currentSection}
+            onSectionChange={setCurrentSection}
+            progress={
+              activeView === "form"
+                ? { percent: progressPercent, label: `${completedCount} important fields completed` }
+                : undefined
+            }
+          />
 
           <main className="space-y-6">
             <div className="rounded-3xl bg-gradient-to-r from-slate-900 to-slate-700 p-6 text-white shadow-sm">
@@ -1343,7 +1371,10 @@ export default function JobIntakeForm() {
                     <div className="text-xs text-white/60">CCEW</div>
                     <button
                       type="button"
-                      onClick={() => setActiveView("ccew")}
+                      onClick={() => {
+                        setActiveView("ccew");
+                        setCurrentSection("ccew-section-1");
+                      }}
                       className="mt-2 w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
                     >
                       Open CCEW
@@ -1388,7 +1419,10 @@ export default function JobIntakeForm() {
                 }}
                 ccewSuggestions={ccewSuggestions}
                 onClearCcewSuggestions={() => setCcewSuggestions(null)}
-                onBack={() => setActiveView("form")}
+                onBack={() => {
+                  setActiveView("form");
+                  setCurrentSection("section-1");
+                }}
               />
             ) : null}
 

@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 
 /** All fields required or used by the CCEW (Certificate Compliance Electrical Work) PDF. */
 export interface CCEWFormState {
@@ -315,18 +315,35 @@ export interface CCEWFormInitialValues {
   electricityRetailer?: string;
 }
 
-function Label({ children, required }: { children: ReactNode; required?: boolean }) {
+function Label({
+  children,
+  required,
+  aiSuggested = false,
+  aiApplied = false,
+}: {
+  children: ReactNode;
+  required?: boolean;
+  aiSuggested?: boolean;
+  aiApplied?: boolean;
+}) {
   return (
-    <label className="mb-1 block text-sm font-medium text-slate-700">
-      {children}
-      {required ? <span className="text-rose-500"> *</span> : null}
+    <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-700">
+      <span>
+        {children}
+        {required ? <span className="text-red-600" aria-hidden="true"> *</span> : null}
+      </span>
+      {aiSuggested ? (
+        <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${aiApplied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+          {aiApplied ? "AI Applied" : "AI Suggested"}
+        </span>
+      ) : null}
     </label>
   );
 }
 
-function CCEWSection({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+function CCEWSection({ id, title, subtitle, children }: { id?: string; title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section id={id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm scroll-mt-6">
       <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
       {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
       <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{children}</div>
@@ -336,7 +353,7 @@ function CCEWSection({ title, subtitle, children }: { title: string; subtitle?: 
 
 const ENERGY_PROVIDERS = [
   "",
-  "Endeavour Energy",
+  "Endeavour Energy",         
   "Ausgrid",
   "Essential Energy",
   "Evoenergy",
@@ -361,8 +378,75 @@ export interface CCEWFormProps {
 }
 
 const CCEW_STATE_KEYS = new Set<string>(Object.keys(defaultCCEWState));
+type CCEWFieldKey = keyof CCEWFormState;
+
+const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+
+type PdfStatus = "idle" | "generating" | "success" | "error";
+
+function validateRequiredFields(ccew: CCEWFormState): string | null {
+  const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  if (!s(ccew.installationStreetName)) return "Installation Street Name is required.";
+  if (!s(ccew.installationSuburb)) return "Installation Suburb is required.";
+  if (!s(ccew.installationState)) return "Installation State is required.";
+  if (!s(ccew.installationPostCode)) return "Installation Post Code is required.";
+  if (!s(ccew.customerFirstName)) return "Customer First Name is required.";
+  if (!s(ccew.customerLastName)) return "Customer Last Name is required.";
+
+  const hasType =
+    ccew.typeResidential ||
+    ccew.typeCommercial ||
+    ccew.typeIndustrial ||
+    ccew.typeRural ||
+    ccew.typeMixedDevelopment;
+  if (!hasType) return "Select at least one Type of Installation.";
+  const hasWork =
+    ccew.workNewWork ||
+    ccew.workAdditionAlteration ||
+    ccew.workInstalledMeter ||
+    ccew.workInstallAdvancedMeter ||
+    ccew.workNetworkConnection ||
+    ccew.workEvConnection ||
+    ccew.reInspectionNonCompliant;
+  if (!hasWork) return "Select at least one Work carried out.";
+
+  if (ccew.meterIncreasedLoadWithinCapacity !== "Yes" && ccew.meterIncreasedLoadWithinCapacity !== "No")
+    return "Answer: Is increased load within capacity of installation/service mains?";
+  if (ccew.meterWorkConnectedToSupply !== "Yes" && ccew.meterWorkConnectedToSupply !== "No")
+    return "Answer: Is work connected to supply? (pending DSNP Inspection)";
+
+  if (!s(ccew.installerFirstName)) return "Installer First Name is required.";
+  if (!s(ccew.installerLastName)) return "Installer Last Name is required.";
+  if (!s(ccew.installerStreetNumber)) return "Installer Street Number is required.";
+  if (!s(ccew.installerStreetName)) return "Installer Street Name is required.";
+  if (!s(ccew.installerSuburb)) return "Installer Suburb is required.";
+  if (!s(ccew.installerState)) return "Installer State is required.";
+  if (!s(ccew.installerPostCode)) return "Installer Post Code is required.";
+  const hasQualified =
+    s(ccew.installerQualifiedSupervisorsNo) && s(ccew.installerQualifiedSupervisorsExpiry);
+  const hasContractor =
+    s(ccew.installerContractorLicenseNo) && s(ccew.installerContractorLicenseExpiry);
+  if (!hasQualified && !hasContractor)
+    return "Provide either Qualified Supervisors No. + Expiry or Contractor's License No. + Expiry.";
+
+  if (!s(ccew.testCompletedOn)) return "The test was completed on (date) is required.";
+
+  if (!ccew.testerSameAsInstaller && !s(ccew.testerEmail))
+    return "Testers Email Address is required when tester is not same as installer.";
+
+  if (!s(ccew.energyProvider)) return "Energy provider (where work was carried out) is required.";
+  if (!s(ccew.ownerEmail)) return "Owner's email is required.";
+
+  return null;
+}
 
 export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSuggestions, onBack }: CCEWFormProps) {
+  const [pdfStatus, setPdfStatus] = useState<PdfStatus>("idle");
+  const [pdfError, setPdfError] = useState<string>("");
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
+  const [appliedSuggestionFields, setAppliedSuggestionFields] = useState<Set<CCEWFieldKey>>(new Set());
+
   const [ccew, setCcew] = useState<CCEWFormState>(() => {
     const s = { ...defaultCCEWState };
     if (!initialValues) return s;
@@ -436,22 +520,109 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
   };
 
   const hasCcewSuggestions = ccewSuggestions && Object.keys(ccewSuggestions).length > 0;
+  const suggestedFieldKeySet = useMemo(() => {
+    const next = new Set<CCEWFieldKey>();
+    if (!ccewSuggestions) return next;
+    for (const key of Object.keys(ccewSuggestions)) {
+      if (!CCEW_STATE_KEYS.has(key)) continue;
+      next.add(key as CCEWFieldKey);
+    }
+    return next;
+  }, [ccewSuggestions]);
+
+  useEffect(() => {
+    setAppliedSuggestionFields(new Set());
+  }, [ccewSuggestions]);
+
+  const getAiFieldState = (fieldName: CCEWFieldKey) => ({
+    aiSuggested: suggestedFieldKeySet.has(fieldName),
+    aiApplied: appliedSuggestionFields.has(fieldName),
+  });
 
   const handleApplyCcewSuggestions = () => {
     if (!ccewSuggestions) return;
+    const appliedKeys = new Set<CCEWFieldKey>();
     setCcew((prev) => {
       const next = { ...prev };
       for (const [key, value] of Object.entries(ccewSuggestions)) {
         if (!CCEW_STATE_KEYS.has(key)) continue;
         if (value === undefined) continue;
         (next as Record<string, unknown>)[key] = value;
+        appliedKeys.add(key as CCEWFieldKey);
       }
       return next;
     });
+    setAppliedSuggestionFields(appliedKeys);
+  };
+
+  const handleClearCcewSuggestions = () => {
+    setAppliedSuggestionFields(new Set());
+    onClearCcewSuggestions?.();
+  };
+
+  useEffect(() => {
+    if (!toast.show) return;
+    const t = setTimeout(() => setToast((prev) => (prev.show ? { ...prev, show: false } : prev)), 5000);
+    return () => clearTimeout(t);
+  }, [toast.show]);
+
+  const handleGeneratePdf = async () => {
+    const validationError = validateRequiredFields(ccew);
+    if (validationError) {
+      setPdfError(validationError);
+      setPdfStatus("error");
+      setToast({ show: true, message: validationError });
+      return;
+    }
+    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+    setPdfBlobUrl(null);
+    setPdfError("");
+    setPdfStatus("generating");
+    try {
+      const response = await fetch(`${API_BASE_URL}/ccew/generate-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ccew),
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        const message = (errBody.detail != null ? String(errBody.detail) : response.statusText) || "Failed to generate PDF";
+        setPdfError(message);
+        setPdfStatus("error");
+        setToast({ show: true, message });
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+      setPdfStatus("success");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to generate PDF";
+      setPdfError(message);
+      setPdfStatus("error");
+      setToast({ show: true, message });
+    }
   };
 
   return (
     <div className="space-y-6">
+      {toast.show && (
+        <div
+          role="alert"
+          className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-lg"
+        >
+          <span className="text-red-600" aria-hidden="true">!</span>
+          <p className="text-sm font-medium text-red-800">{toast.message}</p>
+          <button
+            type="button"
+            onClick={() => setToast((prev) => ({ ...prev, show: false }))}
+            className="ml-auto shrink-0 text-red-500 hover:text-red-700"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">CCEW – Certificate Compliance Electrical Work</h2>
@@ -482,7 +653,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
             </button>
             <button
               type="button"
-              onClick={onClearCcewSuggestions}
+              onClick={handleClearCcewSuggestions}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
             >
               Clear suggestions
@@ -491,13 +662,37 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         </section>
       ) : null}
 
-      <CCEWSection title="1. Installation Address" subtitle="Property where electrical work is carried out (mandatory *).">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Generate CCEW PDF</h2>
+        <p className="mt-1 text-sm text-slate-500">Fill the template with current form data and download the filled PDF.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleGeneratePdf}
+            disabled={pdfStatus === "generating"}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {pdfStatus === "generating" ? "Generating…" : "Generate PDF"}
+          </button>
+          {pdfStatus === "generating" && (
+            <span className="text-sm text-slate-600">Generating PDF…</span>
+          )}
+          {pdfStatus === "success" && (
+            <span className="text-sm text-green-700">PDF ready. Download below.</span>
+          )}
+          {pdfStatus === "error" && (
+            <span className="text-sm text-red-600">Failed to generate PDF: {pdfError}</span>
+          )}
+        </div>
+      </section>
+
+      <CCEWSection id="ccew-section-1" title="1. Installation Address" subtitle="Property where electrical work is carried out. Fields marked with a red * are required by the PDF.">
         <div className="md:col-span-2 xl:col-span-3">
-          <Label required>Property Name / Full address line</Label>
+          <Label {...getAiFieldState("installationPropertyName")}>Property Name / Full address line</Label>
           <input type="text" name="installationPropertyName" value={ccew.installationPropertyName} onChange={handleChange} placeholder="e.g. 88 Silvereye CCT, Woodcroft" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Street Number</Label>
+          <Label {...getAiFieldState("installationStreetNumber")}>Street Number</Label>
           <input type="text" name="installationStreetNumber" value={ccew.installationStreetNumber} onChange={handleChange} placeholder="88" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
@@ -509,7 +704,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <input type="text" name="installationUnit" value={ccew.installationUnit} onChange={handleChange} placeholder="—" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Street Name</Label>
+          <Label required {...getAiFieldState("installationStreetName")}>Street Name</Label>
           <input type="text" name="installationStreetName" value={ccew.installationStreetName} onChange={handleChange} placeholder="Silvereye CCT" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
@@ -521,15 +716,15 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <input type="text" name="installationNearestCrossStreet" value={ccew.installationNearestCrossStreet} onChange={handleChange} placeholder="—" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Suburb</Label>
+          <Label required {...getAiFieldState("installationSuburb")}>Suburb</Label>
           <input type="text" name="installationSuburb" value={ccew.installationSuburb} onChange={handleChange} placeholder="Woodcroft" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>State</Label>
+          <Label required {...getAiFieldState("installationState")}>State</Label>
           <input type="text" name="installationState" value={ccew.installationState} onChange={handleChange} placeholder="NSW" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Post Code</Label>
+          <Label required {...getAiFieldState("installationPostCode")}>Post Code</Label>
           <input type="text" name="installationPostCode" value={ccew.installationPostCode} onChange={handleChange} placeholder="2767" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
@@ -537,7 +732,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <input type="text" name="installationPitPillarPoleNo" value={ccew.installationPitPillarPoleNo} onChange={handleChange} placeholder="—" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label>NMI</Label>
+          <Label {...getAiFieldState("installationNmi")}>NMI</Label>
           <input type="text" name="installationNmi" value={ccew.installationNmi} onChange={handleChange} placeholder="10–11 digits" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
@@ -550,7 +745,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         </div>
       </CCEWSection>
 
-      <CCEWSection title="2. Customer Details" subtitle="* Mandatory. Tick if same as installation address.">
+      <CCEWSection id="ccew-section-2" title="2. Customer Details" subtitle="Tick if same as installation address. Fields marked with a red * are required by the PDF.">
         <div className="flex items-center gap-2 md:col-span-2 xl:col-span-3">
           <input
             type="checkbox"
@@ -563,14 +758,14 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
             }}
             className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
           />
-          <Label>Customer address same as installation</Label>
+          <Label {...getAiFieldState("customerSameAsInstallation")}>Customer address same as installation</Label>
         </div>
         <div>
-          <Label required>First Name</Label>
+          <Label required {...getAiFieldState("customerFirstName")}>First Name</Label>
           <input type="text" name="customerFirstName" value={ccew.customerFirstName} onChange={handleChange} placeholder="Sadru" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Last Name</Label>
+          <Label required {...getAiFieldState("customerLastName")}>Last Name</Label>
           <input type="text" name="customerLastName" value={ccew.customerLastName} onChange={handleChange} placeholder="Lalani" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div className="md:col-span-2 xl:col-span-3">
@@ -580,29 +775,29 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         {!ccew.customerSameAsInstallation && (
           <>
             <div>
-              <Label required>Street Number</Label>
+              <Label {...getAiFieldState("customerStreetNumber")}>Street Number</Label>
               <input type="text" name="customerStreetNumber" value={ccew.customerStreetNumber} onChange={handleChange} placeholder="88" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Street Name</Label>
+              <Label {...getAiFieldState("customerStreetName")}>Street Name</Label>
               <input type="text" name="customerStreetName" value={ccew.customerStreetName} onChange={handleChange} placeholder="Silvereye CCT" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Suburb</Label>
+              <Label {...getAiFieldState("customerSuburb")}>Suburb</Label>
               <input type="text" name="customerSuburb" value={ccew.customerSuburb} onChange={handleChange} placeholder="Woodcroft" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>State</Label>
+              <Label {...getAiFieldState("customerState")}>State</Label>
               <input type="text" name="customerState" value={ccew.customerState} onChange={handleChange} placeholder="NSW" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Post Code</Label>
+              <Label {...getAiFieldState("customerPostCode")}>Post Code</Label>
               <input type="text" name="customerPostCode" value={ccew.customerPostCode} onChange={handleChange} placeholder="2767" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
           </>
         )}
         <div>
-          <Label>Email</Label>
+          <Label {...getAiFieldState("customerEmail")}>Email</Label>
           <input type="email" name="customerEmail" value={ccew.customerEmail} onChange={handleChange} placeholder="customer@email.com" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
@@ -610,14 +805,14 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <input type="text" name="customerOfficeNo" value={ccew.customerOfficeNo} onChange={handleChange} placeholder="—" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label>Mobile No.</Label>
+          <Label {...getAiFieldState("customerMobileNo")}>Mobile No.</Label>
           <input type="text" name="customerMobileNo" value={ccew.customerMobileNo} onChange={handleChange} placeholder="04xx xxx xxx" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
       </CCEWSection>
 
-      <CCEWSection title="3. Installation Details" subtitle="* At least one Type and one Work carried out required.">
+      <CCEWSection id="ccew-section-3" title="3. Installation Details" subtitle="Required: select at least one Type and one Work carried out.">
         <div className="md:col-span-2 xl:col-span-3">
-          <span className="text-sm font-medium text-slate-700">* Type of Installation (select at least one)</span>
+          <span className="text-sm font-medium text-slate-700"><span className="text-red-600" aria-hidden="true">* </span>Type of Installation (select at least one)</span>
         </div>
         {[
           { name: "typeResidential", label: "Residential", value: ccew.typeResidential },
@@ -625,14 +820,24 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           { name: "typeIndustrial", label: "Industrial", value: ccew.typeIndustrial },
           { name: "typeRural", label: "Rural", value: ccew.typeRural },
           { name: "typeMixedDevelopment", label: "Mixed Development", value: ccew.typeMixedDevelopment },
-        ].map(({ name, label, value }) => (
+        ].map(({ name, label, value }) => {
+          const ai = getAiFieldState(name as CCEWFieldKey);
+          return (
           <div key={name} className="flex items-center gap-2">
             <input type="checkbox" name={name} id={name} checked={value} onChange={handleChange} className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500" />
-            <label htmlFor={name} className="text-sm text-slate-700">{label}</label>
+            <label htmlFor={name} className="flex items-center gap-2 text-sm text-slate-700">
+              <span>{label}</span>
+              {ai.aiSuggested ? (
+                <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${ai.aiApplied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                  {ai.aiApplied ? "AI Applied" : "AI Suggested"}
+                </span>
+              ) : null}
+            </label>
           </div>
-        ))}
+          );
+        })}
         <div className="md:col-span-2 xl:col-span-3 mt-4">
-          <span className="text-sm font-medium text-slate-700">* Work carried out (select at least one)</span>
+          <span className="text-sm font-medium text-slate-700"><span className="text-red-600" aria-hidden="true">* </span>Work carried out (select at least one)</span>
         </div>
         {[
           { name: "workNewWork", label: "New Work", value: ccew.workNewWork },
@@ -641,12 +846,22 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           { name: "workInstallAdvancedMeter", label: "Install Advanced Meter", value: ccew.workInstallAdvancedMeter },
           { name: "workNetworkConnection", label: "Network connection", value: ccew.workNetworkConnection },
           { name: "workEvConnection", label: "EV Connection", value: ccew.workEvConnection },
-        ].map(({ name, label, value }) => (
+        ].map(({ name, label, value }) => {
+          const ai = getAiFieldState(name as CCEWFieldKey);
+          return (
           <div key={name} className="flex items-center gap-2">
             <input type="checkbox" name={name} id={name} checked={value} onChange={handleChange} className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500" />
-            <label htmlFor={name} className="text-sm text-slate-700">{label}</label>
+            <label htmlFor={name} className="flex items-center gap-2 text-sm text-slate-700">
+              <span>{label}</span>
+              {ai.aiSuggested ? (
+                <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${ai.aiApplied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                  {ai.aiApplied ? "AI Applied" : "AI Suggested"}
+                </span>
+              ) : null}
+            </label>
           </div>
-        ))}
+          );
+        })}
         <div className="flex items-center gap-2 md:col-span-2 xl:col-span-3">
           <input type="checkbox" name="reInspectionNonCompliant" id="reInspectionNonCompliant" checked={ccew.reInspectionNonCompliant} onChange={handleChange} className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500" />
           <label htmlFor="reInspectionNonCompliant" className="text-sm text-slate-700">Re-inspection of non-compliant work</label>
@@ -673,7 +888,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         ))}
       </CCEWSection>
 
-      <CCEWSection title="4. Details of Equipment" subtitle="Select equipment installed; Rating, Number Installed, Particulars.">
+      <CCEWSection id="ccew-section-4" title="4. Details of Equipment" subtitle="Required: select equipment installed; Rating, Number Installed, Particulars.">
         {[
           { key: "Generation", prefix: "Generation", checked: ccew.equipmentGenerationChecked, rating: ccew.equipmentGenerationRating, number: ccew.equipmentGenerationNumber, particulars: ccew.equipmentGenerationParticulars },
           { key: "Storage", prefix: "Storage", checked: ccew.equipmentStorageChecked, rating: ccew.equipmentStorageRating, number: ccew.equipmentStorageNumber, particulars: ccew.equipmentStorageParticulars },
@@ -686,7 +901,18 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <div key={key} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 md:col-span-2 xl:col-span-3">
             <div className="flex items-center gap-2">
               <input type="checkbox" name={`equipment${prefix}Checked`} id={`equip-${key}`} checked={checked} onChange={handleChange} className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500" />
-              <label htmlFor={`equip-${key}`} className="font-medium text-slate-700">{key}</label>
+              <label htmlFor={`equip-${key}`} className="flex items-center gap-2 font-medium text-slate-700">
+                <span>{key}</span>
+                {(() => {
+                  const ai = getAiFieldState(`equipment${prefix}Checked` as CCEWFieldKey);
+                  if (!ai.aiSuggested) return null;
+                  return (
+                    <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${ai.aiApplied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      {ai.aiApplied ? "AI Applied" : "AI Suggested"}
+                    </span>
+                  );
+                })()}
+              </label>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
               <input type="text" name={`equipment${prefix}Rating`} value={rating} onChange={handleChange} placeholder="Rating" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
@@ -697,7 +923,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         ))}
       </CCEWSection>
 
-      <CCEWSection title="5. Meters" subtitle="* Mandatory Yes/No.">
+      <CCEWSection id="ccew-section-5" title="5. Meters" subtitle="Required: Yes/No for increased load and work connected to supply.">
         <div>
           <Label required>Is increased load within capacity of installation/service mains?</Label>
           <select name="meterIncreasedLoadWithinCapacity" value={ccew.meterIncreasedLoadWithinCapacity} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white">
@@ -720,7 +946,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         </div>
       </CCEWSection>
 
-      <CCEWSection title="6. Installers License Details" subtitle="* Mandatory. Qualified Supervisors No. + Expiry OR Contractor's License No. + Expiry.">
+      <CCEWSection id="ccew-section-6" title="6. Installers License Details" subtitle="Required: Qualified Supervisors No. + Expiry OR Contractor's License No. + Expiry.">
         <div>
           <Label required>First Name</Label>
           <input type="text" name="installerFirstName" value={ccew.installerFirstName} onChange={handleChange} placeholder="David" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
@@ -796,9 +1022,9 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         </div>
       </CCEWSection>
 
-      <CCEWSection title="7. Test Report" subtitle="* The test was completed on; certify compliance items.">
+      <CCEWSection id="ccew-section-7" title="7. Test Report" subtitle="Required: test date and certify compliance items.">
         <div>
-          <Label required>The test was completed on</Label>
+          <Label required {...getAiFieldState("testCompletedOn")}>The test was completed on</Label>
           <input type="date" name="testCompletedOn" value={ccew.testCompletedOn} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div className="md:col-span-2 xl:col-span-3">
@@ -821,7 +1047,7 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         ))}
       </CCEWSection>
 
-      <CCEWSection title="8. Testers License Details" subtitle="Tick if same as Installer; otherwise fill below. * Mandatory.">
+      <CCEWSection id="ccew-section-8" title="8. Testers License Details" subtitle="Tick if same as Installer; otherwise fill below. Tester email is required by the PDF (red *).">
         <div className="flex items-center gap-2 md:col-span-2 xl:col-span-3">
           <input type="checkbox" name="testerSameAsInstaller" id="testerSameAsInstaller" checked={ccew.testerSameAsInstaller} onChange={handleChange} className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500" />
           <Label>Testers Lic. details same as Installers Lic. details</Label>
@@ -829,31 +1055,31 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         {!ccew.testerSameAsInstaller && (
           <>
             <div>
-              <Label required>First Name</Label>
+          <Label {...getAiFieldState("installerFirstName")}>First Name</Label>
               <input type="text" name="testerFirstName" value={ccew.testerFirstName} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Last Name</Label>
+          <Label {...getAiFieldState("installerLastName")}>Last Name</Label>
               <input type="text" name="testerLastName" value={ccew.testerLastName} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Street Number</Label>
+              <Label>Street Number</Label>
               <input type="text" name="testerStreetNumber" value={ccew.testerStreetNumber} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Street Name</Label>
+              <Label>Street Name</Label>
               <input type="text" name="testerStreetName" value={ccew.testerStreetName} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Suburb</Label>
+              <Label>Suburb</Label>
               <input type="text" name="testerSuburb" value={ccew.testerSuburb} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>State</Label>
+              <Label>State</Label>
               <input type="text" name="testerState" value={ccew.testerState} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Post Code</Label>
+              <Label>Post Code</Label>
               <input type="text" name="testerPostCode" value={ccew.testerPostCode} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
@@ -861,29 +1087,29 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
               <input type="email" name="testerEmail" value={ccew.testerEmail} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Qualified Supervisors No.</Label>
+              <Label>Qualified Supervisors No.</Label>
               <input type="text" name="testerQualifiedSupervisorsNo" value={ccew.testerQualifiedSupervisorsNo} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Expiry Date</Label>
+              <Label>Expiry Date</Label>
               <input type="text" name="testerQualifiedSupervisorsExpiry" value={ccew.testerQualifiedSupervisorsExpiry} onChange={handleChange} placeholder="DD/MM/YYYY" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div className="md:col-span-2 xl:col-span-3 text-sm text-slate-500">Or</div>
             <div>
-              <Label required>Contractor's License No.</Label>
+              <Label>Contractor's License No.</Label>
               <input type="text" name="testerContractorLicenseNo" value={ccew.testerContractorLicenseNo} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
             <div>
-              <Label required>Expiry Date</Label>
+              <Label>Expiry Date</Label>
               <input type="text" name="testerContractorLicenseExpiry" value={ccew.testerContractorLicenseExpiry} onChange={handleChange} placeholder="DD/MM/YYYY" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
             </div>
           </>
         )}
       </CCEWSection>
 
-      <CCEWSection title="9. Submit CCEW" subtitle="Energy provider, meter provider email, owner email for submission.">
+      <CCEWSection id="ccew-section-9" title="9. Submit CCEW" subtitle="Required: energy provider and owner email for submission.">
         <div>
-          <Label required>Energy provider (where work was carried out)</Label>
+          <Label required {...getAiFieldState("energyProvider")}>Energy provider (where work was carried out)</Label>
           <select name="energyProvider" value={ccew.energyProvider} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white">
             {ENERGY_PROVIDERS.map((opt) => (
               <option key={opt || "blank"} value={opt}>{opt || "— Select —"}</option>
@@ -895,10 +1121,22 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <input type="email" name="meterProviderEmail" value={ccew.meterProviderEmail} onChange={handleChange} placeholder="To send copy of CCEW" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Owner's email (confirm to send CCEW to property owner)</Label>
+          <Label required {...getAiFieldState("ownerEmail")}>Owner's email (confirm to send CCEW to property owner)</Label>
           <input type="email" name="ownerEmail" value={ccew.ownerEmail} onChange={handleChange} placeholder="owner@email.com" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
       </CCEWSection>
+
+      {pdfStatus === "success" && pdfBlobUrl && (
+        <CCEWSection title="Download filled PDF" subtitle="Your filled CCEW PDF is ready.">
+          <a
+            href={pdfBlobUrl}
+            download="CCEW-filled.pdf"
+            className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            Download CCEW PDF
+          </a>
+        </CCEWSection>
+      )}
     </div>
   );
 }
