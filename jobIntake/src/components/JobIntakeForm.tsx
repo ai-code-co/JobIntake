@@ -13,23 +13,23 @@ import {
 import CCEWForm from "./CCEWForm";
 import PageSidebar, { type PageSidebarSection } from "./PageSidebar";
 
-const sectionTitles = [
-  "Job Type",
-  "Customer Details",
-  "Address Details",
-  "Utility Details",
-  "System Details",
-  "Installation Details",
-  "Schedule & Staff",
-  "Logistics",
-  "References",
-  "Documents",
+const jobIntakeBaseSidebarSections: PageSidebarSection[] = [
+  { id: "section-1", label: "Job Type" },
+  { id: "section-2", label: "Customer Details" },
+  { id: "section-3", label: "Address Details" },
+  { id: "section-4", label: "Utility Details" },
+  { id: "section-5", label: "System Details" },
+  { id: "section-6", label: "Installation Details" },
+  { id: "section-7", label: "Schedule & Staff" },
+  { id: "section-8", label: "Logistics" },
+  { id: "section-9", label: "References" },
+  { id: "section-10", label: "Documents" },
 ];
 
-const jobIntakeSidebarSections: PageSidebarSection[] = sectionTitles.map((label, index) => ({
-  id: `section-${index + 1}`,
-  label,
-}));
+const ausgridSidebarSection: PageSidebarSection = {
+  id: "section-ausgrid",
+  label: "Ausgrid Location",
+};
 
 const ccewSidebarSections: PageSidebarSection[] = [
   { id: "ccew-section-1", label: "Installation Address" },
@@ -244,6 +244,10 @@ const AI_FORCE_OVERWRITE_FIELDS = new Set<SuggestibleFieldKey>([
   "installerPresenceRequired",
 ]);
 
+const INSTALLER_DIRECTORY = [
+  { name: "David McVernon", id: "S0606150" },
+] as const;
+
 const initialForm: FormState = {
   jobType: "Solar PV + Battery",
   ownerType: "Individual",
@@ -322,8 +326,8 @@ const initialForm: FormState = {
   preferredInstallDate: "",
   installationEmail: "",
   installationPhone: "",
-  installerName: "",
-  installerId: "",
+  installerName: INSTALLER_DIRECTORY[0].name,
+  installerId: INSTALLER_DIRECTORY[0].id,
   designerName: "",
   electricianName: "",
   operationsApplicantName: "",
@@ -377,6 +381,56 @@ const initialForm: FormState = {
   uploadElectricityBill: null,
   sitePhotos: null,
   supportingDocuments: null,
+};
+
+const SECTION_REQUIRED_FIELD_GROUPS: Record<string, StringFieldKey[]> = {
+  "section-1": ["jobType", "ownerType", "organisationName"],
+  "section-2": ["firstName", "lastName", "email", "mobile"],
+  "section-3": [
+    "streetAddress",
+    "suburb",
+    "state",
+    "postcode",
+    "poBoxNumber",
+    "postalDeliveryType",
+  ],
+  "section-4": ["nmi", "electricityRetailer"],
+  "section-5": ["panelSystemSize", "connectedType", "batteryManufacturer", "batteryModel", "batteryQuantity", "batteryCapacity"],
+  "section-6": [
+    "batteryInstallationLocation",
+    "bstcCount",
+    "isBstcJob",
+    "bstcDiscountOutOfPocket",
+    "vppCapable",
+    "retailerInvolvedInBattery",
+    "roomBehindBatteryWall",
+    "addingCapacityExistingBattery",
+    "existingNominalOutput",
+    "existingUsableOutput",
+    "prcDistributorAreaNetwork",
+    "batteryPhysicalLocation",
+    "prcBess1Count",
+    "isBess1Job",
+    "prcBess1Discount",
+    "prcBess2Count",
+    "prcBess2Discount",
+    "prcActivityType",
+  ],
+  "section-7": [
+    "installationDate",
+    "installationEmail",
+    "installationPhone",
+    "installerName",
+    "installerId",
+    "installationPostcode",
+    "installationStreetName",
+    "installationSuburb",
+    "installationState",
+  ],
+  "section-8": [],
+  "section-9": ["crmId", "poNumber"],
+  "section-10": [],
+  "section-ausgrid": ["streetAddress", "suburb", "postcode", "landTitleType", "landZoning", "streetNumberRmb"],
 };
 
 const getRequiredFieldRules = (data: FormState, destination: DestinationOption): RequiredFieldRule[] => {
@@ -470,7 +524,6 @@ const getRequiredFieldRules = (data: FormState, destination: DestinationOption):
     if (hasAddressFilled || data.sameInstallationAddressAsCustomer) {
       rules.push(
         { key: "installerName", label: "Installer name" },
-        { key: "installationPhone", label: "Installation phone" },
       );
     }
     const sameAddress = data.sameInstallationAddressAsCustomer === true;
@@ -532,6 +585,32 @@ const validateRequiredFields = (data: FormState, destination: DestinationOption)
   }
 
   return nextErrors;
+};
+
+const prettifyFieldKey = (key: string): string => {
+  const withSpaces = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  if (!withSpaces) return key;
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+};
+
+const formatMissingFieldsToastMessage = (
+  fieldErrors: Partial<Record<string, string>>,
+  data: FormState,
+  destination: DestinationOption,
+): string => {
+  const rules = getRequiredFieldRules(data, destination);
+  const ruleLabelMap = new Map<string, string>(rules.map((r) => [r.key, r.label]));
+  const names = Object.keys(fieldErrors || {})
+    .map((key) => ruleLabelMap.get(key) || prettifyFieldKey(key))
+    .filter(Boolean);
+  const uniqueNames = Array.from(new Set(names));
+  if (uniqueNames.length === 0) {
+    return "Some required fields are missing. Please review and try again.";
+  }
+  return "Some required fields are missing. Please review and try again.";
 };
 
 interface LabelProps {
@@ -810,9 +889,26 @@ export default function JobIntakeForm() {
   const [ccewSuggestions, setCcewSuggestions] = useState<Record<string, unknown> | null>(null);
   const [suggestionSourceData, setSuggestionSourceData] = useState<Record<string, unknown> | null>(null);
   const [appliedSuggestionFields, setAppliedSuggestionFields] = useState<Set<SuggestibleFieldKey>>(new Set());
+  const jobIntakeSidebarSections = useMemo(() => {
+    if (destination !== "Ausgrid") return jobIntakeBaseSidebarSections;
+    const out = [...jobIntakeBaseSidebarSections];
+    out.splice(4, 0, ausgridSidebarSection);
+    return out;
+  }, [destination]);
   const requiredFieldRules = useMemo(() => getRequiredFieldRules(form, destination), [form, destination]);
   const requiredFieldKeys = useMemo(() => requiredFieldRules.map((rule) => rule.key), [requiredFieldRules]);
   const requiredFieldKeySet = useMemo(() => new Set<StringFieldKey>(requiredFieldKeys), [requiredFieldKeys]);
+  const sectionRequiredProgress = useMemo(() => {
+    const requiredSet = new Set(requiredFieldRules.map((rule) => rule.key));
+    const sectionProgress: Record<string, { filled: number; total: number }> = {};
+    for (const [sectionId, candidates] of Object.entries(SECTION_REQUIRED_FIELD_GROUPS)) {
+      const requiredFields = Array.from(new Set(candidates.filter((key) => requiredSet.has(key))));
+      if (requiredFields.length === 0) continue;
+      const filled = requiredFields.reduce((count, key) => (form[key].trim() ? count + 1 : count), 0);
+      sectionProgress[sectionId] = { filled, total: requiredFields.length };
+    }
+    return sectionProgress;
+  }, [form, requiredFieldRules]);
 
   const isRequiredField = (field: StringFieldKey): boolean => requiredFieldKeySet.has(field);
   const isSolarJob = form.jobType === "Solar PV" || form.jobType === "Solar PV + Battery";
@@ -904,6 +1000,12 @@ export default function JobIntakeForm() {
         next.solarIncluded = isSolar;
         next.inverterIncluded = isSolar;
         next.batteryIncluded = isBattery;
+      } else if (fieldName === "installerName") {
+        const match = INSTALLER_DIRECTORY.find((entry) => entry.name === value);
+        next.installerId = match?.id ?? "";
+      } else if (fieldName === "installerId") {
+        const match = INSTALLER_DIRECTORY.find((entry) => entry.id === value);
+        next.installerName = match?.name ?? "";
       }
       return next;
     });
@@ -979,7 +1081,11 @@ export default function JobIntakeForm() {
         }
       }
 
-      alert("Please fill all required fields before submitting.");
+      setToast({
+        show: true,
+        type: "error",
+        message: formatMissingFieldsToastMessage(nextErrors, form, destination),
+      });
       return;
     }
 
@@ -998,7 +1104,7 @@ export default function JobIntakeForm() {
 
         const payload = (await response.json()) as { success: boolean; message?: string; error?: string };
         if (!response.ok || !payload.success) {
-          const msg = payload.error || payload.message || "Ausgrid submission failed.";
+          const msg = "Ausgrid submission failed. Please review required fields and try again.";
           setSubmitStatus("error");
           setSubmitMessage(msg);
           setSubmitResult(null);
@@ -1023,7 +1129,7 @@ export default function JobIntakeForm() {
 
     if (destination !== "BridgeSelect") {
       console.log("Submitted payload:", form);
-      alert("Form submitted. Check console for payload.");
+      setToast({ show: true, type: "success", message: "Form submitted successfully." });
       return;
     }
 
@@ -1058,7 +1164,13 @@ export default function JobIntakeForm() {
         setSubmitMessage(errorMessage);
         setSubmitResult(payload.bridge_response || payload.mapped_payload_preview || null);
         setSubmitDetailsExpanded(false);
-        setToast({ show: true, type: "error", message: errorMessage });
+        setToast({
+          show: true,
+          type: "error",
+          message: fieldErrors
+            ? formatMissingFieldsToastMessage(fieldErrors, form, destination)
+            : "Submission failed. Please review required fields and try again.",
+        });
         submissionStatusRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
         console.error("BridgeSelect submission failed:", payload);
         return;
@@ -1085,7 +1197,7 @@ export default function JobIntakeForm() {
 
   const handleSaveDraft = () => {
     console.log("Draft payload:", form);
-    alert("Draft saved locally in console.");
+    setToast({ show: true, type: "success", message: "Draft saved." });
   };
 
   const handleSupportingDocsSelection = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1268,26 +1380,17 @@ export default function JobIntakeForm() {
     aiApplied: appliedSuggestionFields.has(fieldName),
   });
 
-  const completedCount = useMemo(() => {
-    const fieldsToCheck = [
-      form.jobType,
-      form.firstName,
-      form.lastName,
-      form.email,
-      form.mobile,
-      form.streetAddress,
-      form.suburb,
-      form.state,
-      form.postcode,
-      form.nmi,
-      form.electricityRetailer,
-      form.installationDate,
-    ];
-
-    return fieldsToCheck.filter(Boolean).length;
-  }, [form]);
-
-  const progressPercent = Math.min(100, Math.round((completedCount / 12) * 100));
+  const requiredFieldProgress = useMemo(() => {
+    const total = requiredFieldRules.length;
+    if (total === 0) {
+      return { total: 0, filled: 0, percent: 0 };
+    }
+    const filled = requiredFieldRules.reduce((count, rule) => {
+      return form[rule.key].trim() ? count + 1 : count;
+    }, 0);
+    const percent = Math.round((filled / total) * 100);
+    return { total, filled, percent };
+  }, [form, requiredFieldRules]);
 
   const getFileName = (value: FileValue) => {
     if (!value) return "";
@@ -1316,11 +1419,7 @@ export default function JobIntakeForm() {
             sections={activeView === "form" ? jobIntakeSidebarSections : ccewSidebarSections}
             currentSection={currentSection}
             onSectionChange={setCurrentSection}
-            progress={
-              activeView === "form"
-                ? { percent: progressPercent, label: `${completedCount} important fields completed` }
-                : undefined
-            }
+            sectionProgress={activeView === "form" ? sectionRequiredProgress : undefined}
           />
 
           <main className="space-y-6">
@@ -1361,6 +1460,9 @@ export default function JobIntakeForm() {
                         </option>
                       </select>
                       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/70">▾</span>
+                    </div>
+                    <div className="mt-2 text-[11px] text-white/70">
+                      {requiredFieldProgress.total} required fields for {destination}
                     </div>
                   </div>
                   <div className="rounded-2xl bg-white/10 p-3 backdrop-blur-sm">
@@ -1448,38 +1550,59 @@ export default function JobIntakeForm() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {extractionSteps.map((step) => {
-                  const active = step.key === extractionStatus;
+                  const active =
+                    (step.key === "uploading" && extractionStatus === "uploading") ||
+                    (step.key === "extracting" && ["queued", "extracting"].includes(extractionStatus)) ||
+                    (step.key === "prefilled" && extractionStatus === "prefilled");
                   const done =
                     (step.key === "uploading" && ["queued", "extracting", "prefilled"].includes(extractionStatus)) ||
-                    (step.key === "extracting" && extractionStatus === "prefilled");
+                    (step.key === "extracting" && extractionStatus === "prefilled") ||
+                    (step.key === "prefilled" && extractionStatus === "prefilled");
+                  const prefilledSuccess = step.key === "prefilled" && extractionStatus === "prefilled";
                   return (
                     <div
                       key={step.key}
                       className={`rounded-lg border px-3 py-2 text-sm ${
-                        active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : done
-                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                            : "border-slate-200 bg-slate-50 text-slate-500"
+                        prefilledSuccess
+                          ? "border-emerald-400 bg-emerald-500 text-white"
+                          : active
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : done
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-slate-50 text-slate-500"
                       }`}
                     >
-                      {step.label}
+                      <span className="inline-flex items-center gap-2">
+                        {active && !prefilledSuccess ? (
+                          <span
+                            className={`h-3.5 w-3.5 animate-spin rounded-full border-2 ${
+                              step.key === "extracting" || step.key === "uploading"
+                                ? "border-white/35 border-t-white"
+                                : "border-slate-400/40 border-t-slate-500"
+                            }`}
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {step.label}
+                      </span>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                {extractionJobId ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">Job ID: {extractionJobId}</span>
-                ) : null}
-                {extractionMessage ? (
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{extractionMessage}</span>
-                ) : null}
-                {extractionError ? (
-                  <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">{extractionError}</span>
-                ) : null}
-              </div>
+              {(extractionJobId || (extractionMessage && ["uploading", "queued", "extracting"].includes(extractionStatus)) || (extractionError && extractionStatus === "failed")) ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                  {extractionJobId ? (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">Job ID: {extractionJobId}</span>
+                  ) : null}
+                  {extractionMessage && ["uploading", "queued", "extracting"].includes(extractionStatus) ? (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">{extractionMessage}</span>
+                  ) : null}
+                  {extractionError && extractionStatus === "failed" ? (
+                    <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">Extraction failed. Please retry.</span>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
@@ -1506,6 +1629,22 @@ export default function JobIntakeForm() {
                 >
                   Clear suggestions
                 </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm font-semibold text-emerald-900">Required Fields Progress ({destination})</div>
+                  <div className="text-sm font-semibold text-emerald-800">{requiredFieldProgress.percent}%</div>
+                </div>
+                <div className="mt-2 h-3 overflow-hidden rounded-full bg-emerald-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-600 transition-all duration-300"
+                    style={{ width: `${requiredFieldProgress.percent}%` }}
+                  />
+                </div>
+                <div className="mt-2 text-xs text-emerald-800">
+                  {requiredFieldProgress.filled}/{requiredFieldProgress.total} fields are filled.
+                </div>
               </div>
             </section>
 
@@ -1658,8 +1797,25 @@ export default function JobIntakeForm() {
               <InputField label="Preferred install date" name="preferredInstallDate" type="date" value={form.preferredInstallDate} onChange={handleChange} />
               <InputField label="Installation email" name="installationEmail" type="email" value={form.installationEmail} onChange={handleChange} required={isRequiredField("installationEmail")} error={errors.installationEmail} placeholder="installer@company.com" />
               <InputField label="Installation phone" name="installationPhone" value={form.installationPhone} onChange={handleChange} placeholder="04xx xxx xxx" required={isRequiredField("installationPhone")} error={errors.installationPhone} {...getAiFieldState("installationPhone")} />
-              <InputField label="Installer name" name="installerName" value={form.installerName} onChange={handleChange} placeholder="Assigned installer" required={isRequiredField("installerName")} error={errors.installerName} {...getAiFieldState("installerName")} />
-              <InputField label="Installer identifier (CECID / licence)" name="installerId" value={form.installerId} onChange={handleChange} required={isRequiredField("installerId")} error={errors.installerId} placeholder="A112233" />
+              <SelectField
+                label="Installer name"
+                name="installerName"
+                value={form.installerName}
+                onChange={handleChange}
+                required={isRequiredField("installerName")}
+                error={errors.installerName}
+                options={Array.from(new Set(INSTALLER_DIRECTORY.map((entry) => entry.name)))}
+                {...getAiFieldState("installerName")}
+              />
+              <SelectField
+                label="Installer identifier (CECID / licence)"
+                name="installerId"
+                value={form.installerId}
+                onChange={handleChange}
+                required={isRequiredField("installerId")}
+                error={errors.installerId}
+                options={Array.from(new Set(INSTALLER_DIRECTORY.map((entry) => entry.id)))}
+              />
               <div className="md:col-span-2 xl:col-span-3">
                 <ToggleField label="Same installation address as customer (siad)" name="sameInstallationAddressAsCustomer" checked={form.sameInstallationAddressAsCustomer} onToggle={handleToggle} />
               </div>

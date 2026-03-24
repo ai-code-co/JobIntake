@@ -7,7 +7,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib import parse, request
 from urllib.error import HTTPError, URLError
 
@@ -118,6 +118,141 @@ def _to_float(value: str) -> float | None:
         return float(text)
     except ValueError:
         return None
+
+
+def _to_int(value: Any) -> int | None:
+    text = _as_text(value)
+    if not text:
+        return None
+    try:
+        return int(round(float(text)))
+    except ValueError:
+        return None
+
+
+def _truthy_flag(value: Any) -> bool:
+    if value is True:
+        return True
+    if value is False or value is None:
+        return False
+    t = _as_text(value).lower()
+    return t in {"yes", "y", "true", "1", "on"}
+
+
+def _connector_create_key(key: str) -> str:
+    """Match Connector API createKey(): non [A-Za-z0-9^-] replaced with underscore."""
+    return re.sub(r"[^A-Za-z0-9^-]+", "_", _as_text(key))
+
+
+def _infer_inverter_watts_string(model: str, series: str) -> str:
+    """Best-effort inverter AC watts for Connector API 'w' field."""
+    text = f"{model} {series}".strip()
+    if not text:
+        return "5000"
+    m = re.search(r"(\d+(?:\.\d+)?)\s*kW", text, re.I)
+    if m:
+        return str(int(round(float(m.group(1)) * 1000)))
+    m = re.search(r"[-_/](\d+\.\d+)(?:LV|[-_/A-Za-z]|$)", text)
+    if m:
+        v = float(m.group(1))
+        if v <= 100:
+            return str(int(round(v * 1000)))
+    m = re.search(r"\b(\d{4,5})\b", text)
+    if m:
+        return m.group(1)
+    return "5000"
+
+
+def _battery_brand_short(manufacturer: str) -> str:
+    t = _normalize_space(_as_text(manufacturer))
+    if not t:
+        return "BATTERY"
+    token = re.sub(r"[^A-Za-z0-9]", "", t.split()[0])
+    return (token.upper()[:32] if token else "BATTERY")
+
+
+def _build_mfs_panel_block(form: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """CEC-style panels: key 'mfs' (Connector API)."""
+    if _as_text(form.get("jobType")) not in {"Solar PV", "Solar PV + Battery"}:
+        return None
+    manufacturer = _as_text(form.get("panelManufacturer"))
+    model = _as_text(form.get("panelModel"))
+    qty = _to_int(form.get("panelQuantity"))
+    if not manufacturer or not model or qty is None or qty < 1:
+        return None
+    system_kw = _to_float(_as_text(form.get("panelSystemSize")))
+    if system_kw is not None and qty > 0:
+        w = str(max(1, int(round(system_kw * 1000 / qty))))
+    else:
+        w = "300"
+    mk = _connector_create_key(manufacturer)
+    modk = _connector_create_key(model)
+    rs = _as_text(form.get("retailerEntityName")) or _as_text(form.get("stcTraderName"))
+    inner: Dict[str, Any] = {"n": model, "np": qty, "w": w}
+    if rs:
+        inner["rs"] = rs
+    return {mk: {"ms": {modk: inner}, "n": manufacturer}}
+
+
+def _build_ifs_inverter_block(form: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Inverters: key 'ifs'."""
+    manufacturer = _as_text(form.get("inverterManufacturer"))
+    model = _as_text(form.get("inverterModel"))
+    if not manufacturer or not model:
+        return None
+    if _as_text(form.get("jobType")) not in {"Solar PV", "Solar PV + Battery", "Battery Only"}:
+        return None
+    qty = _to_int(form.get("inverterQuantity"))
+    if qty is None or qty < 1:
+        qty = 1
+    series = _as_text(form.get("inverterSeries")) or model
+    w = _infer_inverter_watts_string(model, series)
+    mk = _connector_create_key(manufacturer)
+    modk = _connector_create_key(model)
+    return {mk: {"ms": {modk: {"n": model, "sr": series, "w": w, "np": qty}}, "n": manufacturer}}
+
+
+def _build_bfs_battery_block(form: Dict[str, Any], payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Batteries: key 'bfs'. Requires capacity and BSTCs when battery job fields are present."""
+    job_type = _as_text(form.get("jobType"))
+    if job_type not in {"Battery Only", "Solar PV + Battery"}:
+        return None
+    manufacturer = _as_text(form.get("batteryManufacturer"))
+    model = _as_text(form.get("batteryModel"))
+    if not manufacturer or not model:
+        return None
+    if job_type == "Solar PV + Battery" and not _truthy_flag(form.get("batteryIncluded")):
+        return None
+    cap = _to_float(_as_text(form.get("batteryCapacity")))
+    if cap is None:
+        return None
+    qty = _to_int(form.get("batteryQuantity"))
+    if qty is None or qty < 1:
+        qty = 1
+    series = _as_text(form.get("batterySeries")) or model
+    bstc_raw = payload.get("bstcn") if payload.get("bstcn") is not None else _as_text(form.get("bstcCount"))
+    bstcn_val = _to_int(bstc_raw)
+    if bstcn_val is None:
+        bstcn_val = 0
+    uc = round(float(cap), 4)
+    nc = round(float(cap) * 1.01, 4) if cap else uc
+    if nc < uc:
+        nc = uc
+    u_modules = qty
+    bn = _battery_brand_short(manufacturer)
+    mk = _connector_create_key(manufacturer)
+    modk = _connector_create_key(model)
+    inner: Dict[str, Any] = {
+        "n": model,
+        "sr": series,
+        "bstcn": bstcn_val,
+        "uc": uc,
+        "nc": nc,
+        "np": qty,
+        "u": u_modules,
+        "bn": bn,
+    }
+    return {mk: {"ms": {modk: inner}, "n": manufacturer}}
 
 
 def _yes_no_to_binary(value: str) -> int:
@@ -320,8 +455,6 @@ def build_bridgeselect_payload(form: Dict[str, Any], timeout_seconds: float, use
     installation_phone = _as_text(form.get("installationPhone"))
     if not installer_name:
         field_errors["installerName"] = "Installer name is required when submitting address to BridgeSelect (used for installation contact first/last name)."
-    if not installation_phone:
-        field_errors["installationPhone"] = "Installation phone is required when submitting address to BridgeSelect."
     if field_errors:
         return {}, field_errors
 
@@ -533,6 +666,16 @@ def build_bridgeselect_payload(form: Dict[str, Any], timeout_seconds: float, use
             payload["cbess2"] = _yes_no_to_binary(prc_fields["isBess2Job"])
             payload["b2sfp"] = prc_fields["prcBess2Discount"] or "0"
             payload["toact"] = prc_fields["prcActivityType"] or "BESS"
+
+    mfs = _build_mfs_panel_block(form)
+    if mfs:
+        payload["mfs"] = mfs
+    ifs = _build_ifs_inverter_block(form)
+    if ifs:
+        payload["ifs"] = ifs
+    bfs = _build_bfs_battery_block(form, payload)
+    if bfs:
+        payload["bfs"] = bfs
 
     required_payload_to_form = {
         "crmid": ("crmId", "CRM ID"),

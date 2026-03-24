@@ -1,9 +1,9 @@
 {
-  "job_id": "74fa6fd3",
-  "created_at": "2026-03-19T17:04:24.102479",
+  "job_id": "8fc83d0c",
+  "created_at": "2026-03-24T16:55:25.586069",
   "status": "prefilled",
   "source_files": [
-    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\74fa6fd3_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\8fc83d0c_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
   ],
   "raw_extracted_data": {
     "customer": {
@@ -13,10 +13,10 @@
       "email": "slav_p@hotmail.com",
       "mobile": "0412417344",
       "phone": "0451 886 798",
-      "owner_type": "Hexagon Energy Pty Ltd"
+      "owner_type": ""
     },
     "address": {
-      "full_address": "4 Jardine Court Sandhurst VIC 3977",
+      "full_address": "4 Jardine Court, Sandhurst VIC 3977",
       "street_address": "4 Jardine Court",
       "suburb": "Sandhurst",
       "state": "VIC",
@@ -35,7 +35,7 @@
       "inverter": [
         {
           "manufacturer": "Hoymiles",
-          "series": "HYS",
+          "series": "HYS-LV",
           "model": "HYS-5.0LV-AUG1",
           "quantity": "1"
         }
@@ -43,7 +43,7 @@
       "battery": [
         {
           "manufacturer": "UZ Energy",
-          "series": "",
+          "series": "PLPA-L1",
           "model": "PLPA-L1-10K2",
           "quantity": "5",
           "capacity_kwh": "10.24"
@@ -61,10 +61,10 @@
     },
     "operations": {
       "installer_name": "",
-      "designer_name": "Nick C",
+      "designer_name": "",
       "electrician_name": "",
       "operations_contact": "",
-      "operations_email": "info@sun-vault.com.au"
+      "operations_email": ""
     },
     "logistics": {
       "pickup_location": "",
@@ -83,7 +83,7 @@
     },
     "bstc": {
       "bstc_count": "420",
-      "bstc_out_of_pocket": "-$15,540.00"
+      "bstc_out_of_pocket": ""
     },
     "notes": ""
   },
@@ -94,7 +94,6 @@
     "email": "slav_p@hotmail.com",
     "mobile": "0412417344",
     "phone": "0451 886 798",
-    "ownerType": "Individual",
     "streetAddress": "4 Jardine Court",
     "suburb": "Sandhurst",
     "state": "VIC",
@@ -103,27 +102,27 @@
     "installationSuburb": "Sandhurst",
     "installationState": "VIC",
     "installationPostcode": "3977",
+    "installationStreetName": "Jardine Court",
     "electricityRetailer": "United Energy Distribution",
     "accountHolderName": "Slawomir Postek",
     "inverterIncluded": true,
     "inverterManufacturer": "Hoymiles",
-    "inverterSeries": "HYS",
+    "inverterSeries": "HYS-LV",
     "inverterModel": "HYS-5.0LV-AUG1",
     "inverterQuantity": "1",
     "batteryIncluded": true,
     "batteryManufacturer": "UZ Energy",
+    "batterySeries": "PLPA-L1",
     "batteryModel": "PLPA-L1-10K2",
     "batteryQuantity": "5",
     "batteryCapacity": "10.24",
+    "batteryInstallationLocation": "Outdoor",
     "jobType": "Battery Only",
     "workType": "STC Battery",
     "backupProtectionRequired": "Yes",
     "storeyType": "Single story",
     "bstcCount": "420",
-    "bstcDiscountOutOfPocket": "-$15,540.00",
-    "designerName": "Nick C",
-    "operationsEmail": "info@sun-vault.com.au",
-    "poNumber": "19032026-1"
+    "poNumber": "24032026-18"
   },
   "ccew_suggestions": {
     "installationStreetNumber": "4",
@@ -131,7 +130,7 @@
     "installationSuburb": "Sandhurst",
     "installationState": "VIC",
     "installationPostCode": "3977",
-    "installationPropertyName": "4 Jardine Court Sandhurst VIC 3977",
+    "installationPropertyName": "4 Jardine Court, Sandhurst VIC 3977",
     "customerSameAsInstallation": true,
     "customerFirstName": "Slawomir",
     "customerLastName": "Postek",
@@ -153,9 +152,7 @@
     "equipmentStorageRating": "10.24",
     "equipmentStorageNumber": "5",
     "equipmentStorageParticulars": "PLPA-L1-10K2",
-    "energyProvider": "United Energy Distribution",
-    "installerFirstName": "Nick",
-    "installerLastName": "C"
+    "energyProvider": "United Energy Distribution"
   },
   "unmapped_notes": []
 }

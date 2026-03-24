@@ -22,6 +22,8 @@ export interface PageSidebarProps {
   progress?: { percent: number; label?: string };
   /** Optional custom node below section list (replaces progress when provided) */
   children?: ReactNode;
+  /** Optional per-section required completion info */
+  sectionProgress?: Record<string, { filled: number; total: number }>;
 }
 
 export default function PageSidebar({
@@ -33,6 +35,7 @@ export default function PageSidebar({
   onSectionChange,
   progress,
   children,
+  sectionProgress,
 }: PageSidebarProps) {
   return (
     <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:sticky xl:top-6">
@@ -47,6 +50,8 @@ export default function PageSidebar({
       <div className="space-y-2 text-sm">
         {sections.map((section, index) => {
           const active = currentSection === section.id;
+          const progressForSection = sectionProgress?.[section.id];
+          const isComplete = progressForSection && progressForSection.total > 0 && progressForSection.filled >= progressForSection.total;
           return (
             <a
               key={section.id}
@@ -54,7 +59,7 @@ export default function PageSidebar({
               onClick={(e) => {
                 e.preventDefault();
                 onSectionChange(section.id);
-                document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth" });
+                document.getElementById(section.id)?.scrollIntoView({ behavior: "auto", block: "start" });
               }}
               className={`flex items-center gap-3 rounded-xl px-3 py-3 transition ${active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
             >
@@ -64,6 +69,21 @@ export default function PageSidebar({
                 {index + 1}
               </span>
               <span>{section.label}</span>
+              {progressForSection && progressForSection.total > 0 ? (
+                <span
+                  className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    isComplete
+                      ? active
+                        ? "bg-emerald-200 text-emerald-900"
+                        : "bg-emerald-100 text-emerald-700"
+                      : active
+                        ? "bg-white/25 text-white"
+                        : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {isComplete ? "Done" : `${progressForSection.filled}/${progressForSection.total}`}
+                </span>
+              ) : null}
             </a>
           );
         })}

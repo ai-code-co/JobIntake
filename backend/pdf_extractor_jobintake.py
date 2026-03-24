@@ -119,6 +119,13 @@ Rules:
 5. Do not invent values.
 6. For address.street_address use the full street line (e.g. "46 First Street") so number and name can be parsed.
 7. For utility.electricity_distributor use the network distributor where work is carried out if mentioned (e.g. Endeavour Energy, Ausgrid).
+8. For inverter and battery equipment:
+   - manufacturer = brand/company (e.g. Hoymiles, UZ Energy)
+   - series = product family line (e.g. HYS-LV, Power Lite Plus)
+   - model = exact SKU/model code (e.g. HYS-5.0LV-AUG1, PLPA-L1-10K2)
+9. Do NOT copy model into series unless the source explicitly shows they are identical.
+10. If series is unknown but model is known, set series to "".
+11. For model values, remove trailing bracketed compliance notes if present, e.g. "(AS4777-2 2020)".
 
 Input text:
 ---
@@ -211,6 +218,92 @@ Return JSON in this exact shape:
 }}"""
 
 
+def _clean_equipment_model(value: Any) -> str:
+    text = _normalize_text(value)
+    if not text:
+        return ""
+    return re.sub(r"\s*\(.*?\)\s*$", "", text).strip()
+
+
+def _equipment_needs_repair(item: dict) -> bool:
+    model = _clean_equipment_model(item.get("model"))
+    series = _normalize_text(item.get("series"))
+    if not model:
+        return False
+    return (not series) or (model.lower() == series.lower())
+
+
+def _needs_equipment_repair(parsed: Dict[str, Any]) -> bool:
+    system = _safe_get(parsed, "system", default={}) or {}
+    inverter = _first_item(_safe_get(system, "inverter", default=[]))
+    battery = _first_item(_safe_get(system, "battery", default=[]))
+    return _equipment_needs_repair(inverter) or _equipment_needs_repair(battery)
+
+
+def _build_equipment_repair_prompt(text: str, extracted: Dict[str, Any]) -> str:
+    return f"""You are repairing only equipment extraction fields from a solar proposal.
+
+Return strict JSON only in this shape:
+{{
+  "system": {{
+    "inverter": [{{"manufacturer":"", "series":"", "model":"", "quantity":""}}],
+    "battery": [{{"manufacturer":"", "series":"", "model":"", "quantity":"", "capacity_kwh":""}}]
+  }}
+}}
+
+Rules:
+1. Keep manufacturer/model/series exact to source text where possible.
+2. series and model should generally be different:
+   - series = family line (e.g. HYS-LV, Power Lite Plus)
+   - model = exact SKU (e.g. HYS-5.0LV-AUG1, PLPA-L1-10K2)
+3. If series is unknown, return series="" (do NOT duplicate model).
+4. Remove trailing bracketed compliance notes from model only (e.g. "(AS4777-2 2020)").
+5. Do not change non-equipment fields because they are not provided here.
+
+Current extracted equipment JSON:
+{json.dumps({"system": _safe_get(extracted, "system", default={})}, ensure_ascii=False)}
+
+Source text:
+---
+{text}
+---
+"""
+
+
+def _apply_repaired_equipment(parsed: Dict[str, Any], repaired: Dict[str, Any]) -> Dict[str, Any]:
+    result = dict(parsed)
+    result_system = dict(_safe_get(result, "system", default={}) or {})
+    repaired_system = _safe_get(repaired, "system", default={}) or {}
+
+    repaired_inverter = _first_item(_safe_get(repaired_system, "inverter", default=[]))
+    repaired_battery = _first_item(_safe_get(repaired_system, "battery", default=[]))
+
+    current_inverter = _first_item(_safe_get(result_system, "inverter", default=[]))
+    current_battery = _first_item(_safe_get(result_system, "battery", default=[]))
+
+    if repaired_inverter:
+        merged_inv = {
+            "manufacturer": _normalize_text(repaired_inverter.get("manufacturer")) or _normalize_text(current_inverter.get("manufacturer")),
+            "series": _normalize_text(repaired_inverter.get("series")),
+            "model": _clean_equipment_model(repaired_inverter.get("model")) or _clean_equipment_model(current_inverter.get("model")),
+            "quantity": _normalize_text(repaired_inverter.get("quantity")) or _normalize_text(current_inverter.get("quantity")),
+        }
+        result_system["inverter"] = [merged_inv]
+
+    if repaired_battery:
+        merged_bat = {
+            "manufacturer": _normalize_text(repaired_battery.get("manufacturer")) or _normalize_text(current_battery.get("manufacturer")),
+            "series": _normalize_text(repaired_battery.get("series")),
+            "model": _clean_equipment_model(repaired_battery.get("model")) or _clean_equipment_model(current_battery.get("model")),
+            "quantity": _normalize_text(repaired_battery.get("quantity")) or _normalize_text(current_battery.get("quantity")),
+            "capacity_kwh": _normalize_text(repaired_battery.get("capacity_kwh")) or _normalize_text(current_battery.get("capacity_kwh")),
+        }
+        result_system["battery"] = [merged_bat]
+
+    result["system"] = result_system
+    return result
+
+
 def _fallback_extract(text: str) -> Dict[str, Any]:
     """Deterministic fallback if AI is unavailable."""
     email_match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
@@ -297,6 +390,23 @@ def extract_jobintake_from_multiple_pdfs(pdf_texts: List[str]) -> Dict[str, Any]
         content = response.choices[0].message.content or "{}"
         parsed = json.loads(_strip_json_fences(content))
         if isinstance(parsed, dict):
+            if _needs_equipment_repair(parsed):
+                repair_prompt = _build_equipment_repair_prompt(combined, parsed)
+                try:
+                    repair_response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": "Repair only equipment fields as valid JSON."},
+                            {"role": "user", "content": repair_prompt},
+                        ],
+                        temperature=0,
+                    )
+                    repaired_content = repair_response.choices[0].message.content or "{}"
+                    repaired = json.loads(_strip_json_fences(repaired_content))
+                    if isinstance(repaired, dict):
+                        parsed = _apply_repaired_equipment(parsed, repaired)
+                except Exception:
+                    pass
             return parsed
     except Exception:
         pass
@@ -357,11 +467,12 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
     suggestions["postcode"] = postcode
 
     install_street = street or full_address
+    _, parsed_install_street_name = _parse_street_number_name(install_street)
     suggestions["installationAddress"] = install_street
     suggestions["installationSuburb"] = suburb
     suggestions["installationState"] = state
     suggestions["installationPostcode"] = postcode
-    suggestions["installationStreetName"] = ""
+    suggestions["installationStreetName"] = parsed_install_street_name or install_street
 
     property_type = _normalize_text(_safe_get(address, "property_type")).lower()
     if property_type:
@@ -408,6 +519,8 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
     suggestions["batteryModel"] = _normalize_text(battery.get("model"))
     suggestions["batteryQuantity"] = _normalize_text(battery.get("quantity"))
     suggestions["batteryCapacity"] = _normalize_text(battery.get("capacity_kwh"))
+    if battery_present and not _normalize_text(suggestions.get("batteryInstallationLocation")):
+        suggestions["batteryInstallationLocation"] = "Outdoor"
 
     if panel_present and battery_present:
         suggestions["jobType"] = "Solar PV + Battery"
@@ -416,7 +529,7 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
         suggestions["jobType"] = "Battery Only"
         suggestions["workType"] = "STC Battery"
     elif panel_present:
-        suggestions["jobType"] = "Solar PV + Battery"
+        suggestions["jobType"] = "Solar PV"
         suggestions["workType"] = "STC Panel"
 
     installation_style = _normalize_text(_safe_get(installation, "installation_style")).lower()

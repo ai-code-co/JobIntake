@@ -156,6 +156,12 @@ def _next_po_reference() -> str:
 
 def _save_upload(job_id: str, file: UploadFile) -> str:
     safe_name = Path(file.filename or f"upload_{uuid.uuid4().hex}.pdf").name
+    # Keep only the latest uploaded copy for the same original filename.
+    for old_path in TEMP_DIR.glob(f"*_{safe_name}"):
+        try:
+            old_path.unlink()
+        except Exception:
+            pass
     path = TEMP_DIR / f"{job_id}_{safe_name}"
     with open(path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
