@@ -126,6 +126,10 @@ Rules:
 9. Do NOT copy model into series unless the source explicitly shows they are identical.
 10. If series is unknown but model is known, set series to "".
 11. For model values, remove trailing bracketed compliance notes if present, e.g. "(AS4777-2 2020)".
+12. Pricing extraction:
+   - If a summary has "Total incl. GST", capture it in pricing.total_incl_gst.
+   - If BSTC out-of-pocket is not explicitly labelled, infer bstc.bstc_out_of_pocket from pricing.total_incl_gst for battery/BSTC proposals.
+   - Keep amounts as seen in source (e.g. "$4,600.00" or "4600.00"); do not invent numbers.
 
 Input text:
 ---
@@ -213,6 +217,11 @@ Return JSON in this exact shape:
   "bstc": {{
     "bstc_count": "",
     "bstc_out_of_pocket": ""
+  }},
+  "pricing": {{
+    "total_incl_gst": "",
+    "included_gst": "",
+    "bstc_discount_amount": ""
   }},
   "notes": ""
 }}"""
@@ -365,6 +374,7 @@ def _fallback_extract(text: str) -> Dict[str, Any]:
             "stc_trader_name": "",
         },
         "bstc": {"bstc_count": "", "bstc_out_of_pocket": ""},
+        "pricing": {"total_incl_gst": "", "included_gst": "", "bstc_discount_amount": ""},
         "notes": "",
     }
 
@@ -556,8 +566,13 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
         suggestions["storeyType"] = "Multi story" if any(t in storey for t in ("multi", "2", "3", "4", "5")) else "Single story"
 
     bstc = _safe_get(ai_data, "bstc", default={}) or {}
+    pricing = _safe_get(ai_data, "pricing", default={}) or {}
     suggestions["bstcCount"] = _normalize_text(bstc.get("bstc_count"))
-    suggestions["bstcDiscountOutOfPocket"] = _normalize_text(bstc.get("bstc_out_of_pocket"))
+    bstc_out_of_pocket = _normalize_text(bstc.get("bstc_out_of_pocket"))
+    # Fallback: many proposals expose final payable as "Total incl. GST" rather than explicit BSTC out-of-pocket label.
+    if not bstc_out_of_pocket:
+        bstc_out_of_pocket = _normalize_text(pricing.get("total_incl_gst"))
+    suggestions["bstcDiscountOutOfPocket"] = bstc_out_of_pocket
 
     suggestions["installerName"] = _normalize_text(_safe_get(operations, "installer_name"))
     suggestions["designerName"] = _normalize_text(_safe_get(operations, "designer_name"))

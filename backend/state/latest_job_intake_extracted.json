@@ -1,9 +1,9 @@
 {
-  "job_id": "8fc83d0c",
-  "created_at": "2026-03-24T16:55:25.586069",
+  "job_id": "b1d4697a",
+  "created_at": "2026-03-24T17:58:55.849017",
   "status": "prefilled",
   "source_files": [
-    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\8fc83d0c_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\b1d4697a_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
   ],
   "raw_extracted_data": {
     "customer": {
@@ -12,11 +12,11 @@
       "last_name": "Postek",
       "email": "slav_p@hotmail.com",
       "mobile": "0412417344",
-      "phone": "0451 886 798",
+      "phone": "",
       "owner_type": ""
     },
     "address": {
-      "full_address": "4 Jardine Court, Sandhurst VIC 3977",
+      "full_address": "4 Jardine Court, Sandhurst, VIC 3977",
       "street_address": "4 Jardine Court",
       "suburb": "Sandhurst",
       "state": "VIC",
@@ -61,10 +61,10 @@
     },
     "operations": {
       "installer_name": "",
-      "designer_name": "",
+      "designer_name": "Nick C",
       "electrician_name": "",
-      "operations_contact": "",
-      "operations_email": ""
+      "operations_contact": "0451 886 798",
+      "operations_email": "info@sun-vault.com.au"
     },
     "logistics": {
       "pickup_location": "",
@@ -83,7 +83,12 @@
     },
     "bstc": {
       "bstc_count": "420",
-      "bstc_out_of_pocket": ""
+      "bstc_out_of_pocket": "$4,600.00"
+    },
+    "pricing": {
+      "total_incl_gst": "$4,600.00",
+      "included_gst": "$1,830.91",
+      "bstc_discount_amount": "-$15,540.00"
     },
     "notes": ""
   },
@@ -93,7 +98,6 @@
     "customerFullName": "Slawomir Postek",
     "email": "slav_p@hotmail.com",
     "mobile": "0412417344",
-    "phone": "0451 886 798",
     "streetAddress": "4 Jardine Court",
     "suburb": "Sandhurst",
     "state": "VIC",
@@ -122,7 +126,11 @@
     "backupProtectionRequired": "Yes",
     "storeyType": "Single story",
     "bstcCount": "420",
-    "poNumber": "24032026-18"
+    "bstcDiscountOutOfPocket": "$4,600.00",
+    "designerName": "Nick C",
+    "operationsContact": "0451 886 798",
+    "operationsEmail": "info@sun-vault.com.au",
+    "poNumber": "24032026-19"
   },
   "ccew_suggestions": {
     "installationStreetNumber": "4",
@@ -130,7 +138,7 @@
     "installationSuburb": "Sandhurst",
     "installationState": "VIC",
     "installationPostCode": "3977",
-    "installationPropertyName": "4 Jardine Court, Sandhurst VIC 3977",
+    "installationPropertyName": "4 Jardine Court, Sandhurst, VIC 3977",
     "customerSameAsInstallation": true,
     "customerFirstName": "Slawomir",
     "customerLastName": "Postek",
@@ -152,7 +160,9 @@
     "equipmentStorageRating": "10.24",
     "equipmentStorageNumber": "5",
     "equipmentStorageParticulars": "PLPA-L1-10K2",
-    "energyProvider": "United Energy Distribution"
+    "energyProvider": "United Energy Distribution",
+    "installerFirstName": "Nick",
+    "installerLastName": "C"
   },
   "unmapped_notes": []
 }
