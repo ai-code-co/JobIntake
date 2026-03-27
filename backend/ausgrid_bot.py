@@ -6,9 +6,13 @@ Playwright automation to fill the Ausgrid IDO portal Location step
 """
 
 import os
+import asyncio
 from pathlib import Path
 from typing import Any
 import re
+from urllib.parse import urljoin
+import requests
+
 
 from playwright.sync_api import sync_playwright, Page, Locator, TimeoutError as PlaywrightTimeoutError
 
@@ -21,6 +25,12 @@ LOCATION_URL = f"{AUSGRID_BASE_URL}/#/existingbelow100/location/new/0"
 HEADED = os.getenv("AUSGRID_HEADED", "true").strip().lower() in ("1", "true", "yes")
 FORM_WAIT_TIMEOUT_MS = int(os.getenv("AUSGRID_FORM_TIMEOUT_MS", "30000"))
 FILL_TIMEOUT_MS = 5000
+
+
+# On Windows + Python 3.13, Playwright may fail with NotImplementedError when
+# spawned from worker threads unless a subprocess-capable event loop policy is used.
+if os.name == "nt" and hasattr(asyncio, "WindowsProactorEventLoopPolicy"):
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 def _v(data: dict, key: str) -> str:
@@ -369,8 +379,124 @@ def fill_load_details(page: Page, data: dict[str, Any]) -> None:
     # page.wait_for_load_state("domcontentloaded")
     # page.wait_for_timeout(800)
 
+def fill_load_details_alter(page:Page, data:dict[str,Any]):
+    # page.get_by_label("Alter an Existing Embedded Generation / Storage System", exact=False).check()  
+    
+    page.get_by_text("Alter an Existing Embedded Generation / Storage System", exact=False).click()
+    page.get_by_role("button", name=re.compile(r"Next", re.I)).click()
 
-def fill_location(data: dict[str, Any]) -> dict[str, Any]:
+def fill_embedded_generation(page:Page, data:dict[str,Any]):
+    
+    block = page.locator(".form-group").filter(
+    has_text="How do you intend to operate your Embedded Generation"
+    ).first
+
+    block.locator(".radio").filter(has_text="Parallel").first.click()
+    
+    block2 = page.locator(".form-group").filter(
+    has_text="Embedded Generation is connected via"
+    ).first
+
+    block2.locator(".radio").filter(has_text="Inverter").first.click()
+    
+    
+    block3 = page.locator(".form-group").filter(
+    has_text="Are you intending to Connect or Remove PV Panels or DC Coupled Battery Storage via the DC Ports of an Existing Inverter"
+    ).first    
+    block3.locator(".radio").filter(has_text="Yes").first.click()
+    
+    block4 = page.locator(".panel-body").filter(
+    has_text="Energy Source Modification"
+    ).first  
+    _select_by_label(block4,label="Energy Source Modification",option_text="Add battery to existing inverter")
+    page.wait_for_timeout(1200)
+    _fill_by_label(page,label="Rated Continuous Power kW",value="5")
+    _fill_by_label(page,label="Rated Energy Capacity kWh",value="50")
+    
+    save_btn=page.get_by_role("button", name="Save").first
+    save_btn.click()
+    
+    
+    page.wait_for_timeout(1200)
+    
+    save_btn=page.get_by_role("button", name="Existing Inverter").first
+    save_btn.click()
+    
+    _select_by_label(page,label="Energy Source",option_text="PV only")
+    _fill_by_label(page,label="Total Generation Kw",value="10")
+    _select_by_label(page,label="Inverter Type",option_text="Grid Connect")
+    _select_by_label(page,label="Inverter Phase",option_text="Three") 
+    
+    
+    _fill_by_label(page,label="Phase A",value="3.33")
+    _fill_by_label(page,label="Phase B",value="3.33")
+    _fill_by_label(page,label="Phase C",value="3.33")
+    save_btn=page.get_by_role("button", name="Save").first
+    save_btn.click()
+    
+    
+    block = page.locator(".form-group").filter(
+    has_text=re.compile(r"energy storage be configured to provide power", re.I)
+    ).first
+
+    block.wait_for(state="visible", timeout=FILL_TIMEOUT_MS)
+
+    block.locator(".radio").filter(
+        has_text=re.compile(r"^\s*Yes\s*$", re.I)
+    ).first.click()
+    
+    # 
+    block_well = page.locator(".well").filter(
+    has_text=re.compile(r"Do two or more retail NMI", re.I)
+    ).first
+
+    block_well.wait_for(state="visible", timeout=FILL_TIMEOUT_MS)
+
+    block_well.locator(".radio").filter(
+        has_text=re.compile(r"^\s*No\s*$", re.I)
+    ).first.click()
+    
+    # conditions 
+    # page.get_by_label(
+    # "I have made efforts to identify any other premises with Embedded Generation that share the network connection that this application pertains to, and have provided those details (where relevant) within this application.",
+    # exact=False
+    # ).check()
+
+
+    page.locator(".form-group").filter(has_text="I have made efforts to identify any other premises with Embedded Generation that share the network connection that this application pertains to, and have provided those details (where relevant) within this application.").first.click()
+    page.locator(".form-group").filter(has_text="In preparing this application I have considered the requirements of the AS/NZS3000:2018 The Wiring Rules.").first.click()
+   
+    block = page.locator(".form-group").filter(
+        has_text="All inverter installations will be designed and installed only by persons currently accredited"
+    ).first
+
+    block.locator("label.btn").first.click()
+    page.locator(".form-group").filter(has_text="Proposed inverter(s) complies with the voltage rise requirements of NSW Service and Installation Rules").first.click()
+    page.locator(".form-group").filter(has_text="Proposed inverter(s) have Volt-VAR and Volt-Watt response modes enabled.").first.click()
+    page.locator(".form-group").filter(has_text="In preparing this application I have considered the requirements of NS194 Connection of Embedded Generators, and the requirements of the AEMO DER Register Information Guidelines to provide the installed generation equipment details to the AEMO DER Register within 20 business days of commissioning .").first.click()
+    page.locator(".form-group").filter(has_text="In preparing this application I have considered the requirements of the Service and Installation Rules of NSW").first.click()
+    page.locator(".form-group").filter(has_text="In preparing this application I have considered the requirements of the AS/NZS4777 Grid connection of energy systems via inverters").first.click()
+        
+    print("--Filled embedded generation--")
+
+def get_pdf_api_pay(page:Page,data:dict[str,Any]): 
+    page.locator(".form-group").filter(has_text="I acknowledge the terms & conditions.").first.click()
+    download_href = page.get_by_role("link", name="Download PDF").get_attribute("href")
+    pdf_url = urljoin(page.url, download_href)
+
+    save_dir = Path("state/ausgrid_summary")
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = save_dir / "ausgrid_summary.pdf"
+
+    response = requests.get(pdf_url, timeout=60)
+    response.raise_for_status()
+
+    file_path.write_bytes(response.content)
+
+    print(f"Saved PDF to: {file_path}")
+   
+def     fill_location(data: dict[str, Any]) -> dict[str, Any]:
     """
     Open Ausgrid Location URL, wait for form, fill required fields, click Next.
 
@@ -386,14 +512,15 @@ def fill_location(data: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {"success": False, "message": ""}
     AUSGRID_FAILURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    street_name = _v(data, "streetAddress")
-    suburb = _v(data, "suburb")
-    postcode = _v(data, "postcode")
-    land_title_type = _v(data, "landTitleType")
-    land_zoning = _v(data, "landZoning")
-    street_number_rmb = _v(data, "streetNumberRmb")
+    # Accept both frontend payload keys and backend-transformed keys.
+    land_title_type = _v(data, "customerLandTitleType") or _v(data, "landTitleType")
+    street_name = _v(data, "customerStreetName") or _v(data, "streetAddress")
+    # suburb = _v(data, "customerSuburb") or _v(data, "suburb") or _v(data, "applicantSuburb")
+    # postcode = _v(data, "customerPostCode") or _v(data, "postcode") or _v(data, "applicantPostCode")
+    street_number_rmb = _v(data, "customerStreetNumberRmb") or _v(data, "streetNumberRmb")
     lot_number = _v(data, "lotNumber")
     lot_dp_number = _v(data, "lotDpNumber")
+    land_zoning="Urban"
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not HEADED)
@@ -415,9 +542,7 @@ def fill_location(data: dict[str, Any]) -> dict[str, Any]:
             page.wait_for_timeout(1200)
             try:
                 page.goto(LOCATION_URL, wait_until="domcontentloaded", timeout=FORM_WAIT_TIMEOUT_MS)
-                # Wait for Location form (label may include "* " for required; do not use exact=True)
-                page.get_by_label("Suburb").wait_for(state="visible", timeout=FORM_WAIT_TIMEOUT_MS)
-                _fill_by_label(page,"Suburb",suburb)
+                # page.get_by_label("Suburb").wait_for(state="visible", timeout=FORM_WAIT_TIMEOUT_MS)
             except PlaywrightTimeoutError as e:
                 result["message"] = "Ausgrid Location page did not load in time."
                 result["error"] = str(e)
@@ -428,6 +553,10 @@ def fill_location(data: dict[str, Any]) -> dict[str, Any]:
                 return result
 
             try:
+                if land_title_type:
+                    if not _select_by_label(page, "Land Title Type", land_title_type):
+                        raise RuntimeError("Failed to select Land Title Type.")
+                
                 # One of: Street Number/RMB, Lot Number, Lot/DP Number
                 if street_number_rmb:
                     _fill_by_label(page, "Street Number/RMB", street_number_rmb)
@@ -436,64 +565,80 @@ def fill_location(data: dict[str, Any]) -> dict[str, Any]:
                 elif lot_dp_number:
                     _fill_by_label(page, "Lot/DP Number", lot_dp_number)
 
-                _fill_by_label(page, "Street Name", street_name)
-                _fill_by_label(page, "Suburb", suburb)
-                _fill_by_label(page, "Postcode", postcode)
+                
+                if street_name:
+                    input_box = page.get_by_label("Street Name", exact=False).first
 
-                if land_title_type:
-                    if not _select_by_label(page, "Land Title Type", land_title_type):
-                        raise RuntimeError("Failed to select Land Title Type.")
+                    input_box.click()
+                    input_box.fill("")  
+                    input_box.type(street_name, delay=50)
+                    # Wait for suggestions
+                    try:
+                        page.locator(".pac-item").first.wait_for(timeout=3000)
+                        page.locator(".pac-item").first.click()
+                    except:
+                        # fallback: keyboard selection
+                        page.keyboard.press("ArrowDown")
+                        page.keyboard.press("Enter")
+                
                 if land_zoning:
                     if not _select_by_label(page, "Land Zoning", land_zoning):
-                        raise RuntimeError("Failed to select Land Zoning.")
-
+                        raise RuntimeError("Failed to select Land Title Type.")
+            
+                # page.wait_for_timeout(2000)
+                # if land_title_type:
+                #     if not _select_by_label(page, "Land Title Type", land_title_type):
+                #         raise RuntimeError("Failed to select Land Title Type.")
+                
                 # Optional
                 nmi = _v(data, "nmi")
-                if nmi:
-                    _fill_by_label(page, "NMI", nmi)
-                prop_name = _v(data, "propertyName")
-                if prop_name:
-                    _fill_by_label(page, "Property Name", prop_name)
-                retailer = _v(data, "electricityRetailer")
-                if retailer:
-                    if not _select_by_label(page, "Retailer", retailer):
-                        raise RuntimeError("Failed to select Retailer.")
-                    
-                    
-                ## not required field 
-                    
-                # prop_type = _v(data, "propertyType")
-                # if prop_type:
-                #     if not _select_by_label(page, "Property Type", prop_type):
-                #         raise RuntimeError("Failed to select Property Type.")
-                # unit = _v(data, "unitNumber")
-                # if unit:
-                #     _fill_by_label(page, "Unit/Shop Number", unit)
+                # if nmi:
+                #     _fill_by_label(page, "NMI", nmi)
+                # prop_name = _v(data, "propertyName")
+                # if prop_name:
+                #     _fill_by_label(page, "Property Name", prop_name)
+                # retailer = _v(data, "electricityRetailer")
+                # if retailer:
+                #     if not _select_by_label(page, "Retailer", retailer):
+                #         raise RuntimeError("Failed to select Retailer.")
 
                 # Click Next / Save & Next -> Applicant
                 next_btn = page.get_by_role("button", name="Next").or_(page.get_by_role("button", name="Save & Next")).first
                 if next_btn.count() > 0:
                     next_btn.click()
-                    applicant_type = _v(data, "applicantType")
-                    asp_number = _v(data, "aspNumber")
-                    asp_level = _v(data, "aspLevel")
+                    applicantType = _v(data, "applicantType")
+                    applicantTitle = _v(data,"applicantTitle")
+                    # asp_number = _v(data, "aspNumber")
+                    # asp_level = _v(data, "aspLevel")
                     customer_type = _v(data, "customerType")
                     title = _v(data, "title")
-                    first_name = _v(data, "firstName")
-                    last_name = _v(data, "lastName")
-                    email_address = _v(data, "email_address")
-                    phone_no = _v(data, "phoneNo")
+                    applicantFirstName = _v(data, "applicantFirstName")
+                    applicantLastName = _v(data, "applicantLastName")
+                    applicantEmailAddress = _v(data, "applicantEmailAddress")
+                    applicantPhoneNo = _v(data, "applicantPhoneNo")
+                    applicantSuburb= _v(data,"applicantSuburb")
+                    applicantPostcode= _v(data,"applicantPostCode")
+                    
+                    customerTitle = _v(data, "customerTitle") or title
+                    customerFirstName = _v(data, "customerFirstName") or _v(data, "firstName")
+                    customerLastName = _v(data, "customerLastName") or _v(data, "lastName")
+                    customerEmailAddress = (
+                        _v(data, "customerEmailAddress")
+                        or _v(data, "emailAddress")
+                        or _v(data, "email_address")
+                    )
+                    customerPhoneNumber = _v(data, "customerPhoneNumber") or _v(data, "phoneNumber") or _v(data, "phoneNo")
                     has_applicant_payload = any(
                         [
-                            applicant_type,
-                            asp_number,
-                            asp_level,
+                            applicantType,
                             customer_type,
-                            title,
-                            first_name,
-                            last_name,
-                            email_address,
-                            phone_no,
+                            applicantTitle,
+                            applicantFirstName,
+                            applicantLastName,
+                            applicantEmailAddress,
+                            customerTitle,
+                            applicantPhoneNo,
+                            customerPhoneNumber
                         ]
                     )
 
@@ -508,121 +653,88 @@ def fill_location(data: dict[str, Any]) -> dict[str, Any]:
                             )
                         print("new page url 223:", page.url)
 
-                    print("223 it came here")
-                    if applicant_type:
-                        if not _select_by_label(page, label="Applicant Type", option_text=applicant_type):
+                    if applicantType:
+                        if not _select_by_label(page, label="Applicant Type", option_text=applicantType):
                             raise RuntimeError("Failed to select Applicant Type.")
+                    
+                    if applicantTitle:
+                        if not _select_by_label(page, label="Title", option_text=applicantTitle):
+                            raise RuntimeError("Failed to select Title.")
+                        page.wait_for_timeout(200)
+                    
+                    
+                    if applicantFirstName:
+                        if not _fill_by_label(page, label="First Name", value=applicantFirstName):
+                            raise RuntimeError("Failed to fill First Name.")    
+                       
+                    if applicantLastName:
+                        if not _fill_by_label(page, label="Last Name", value=applicantLastName):
+                            raise RuntimeError("Failed to fill Last Name.")
+                    
+                    if applicantEmailAddress:
+                        email_ok = _fill_by_label(
+                            page, label="Email Address", value=applicantEmailAddress, exact=True,index=0
+                        )
+                        confirm_ok = _fill_by_label(
+                            page, label="Confirm Email Address", value=applicantEmailAddress, exact=True,index=0
+                        )
+                        
+                        page.wait_for_timeout(250)
+                        
+                        if not email_ok:
+                            raise RuntimeError("Failed to fill Email Address.")
+                        if not confirm_ok:
+                            raise RuntimeError("Failed to fill Confirm Email Address.")
+                            
+                    if street_number_rmb:
+                        if not _fill_by_label(page, label="Street Number/RMB", value=street_number_rmb):
+                            raise RuntimeError("Failed to fill Applicant Street Number/RMB.")
+                        
+                    if street_name:
+                        if not _fill_by_label(page, label="Street Name", value=street_name):
+                            raise RuntimeError("Failed to fill Applicant Street Name.")   
+                                 
+                    if applicantSuburb:
+                        if not _fill_by_label(page, label="Suburb", value=applicantSuburb):
+                            raise RuntimeError("Failed to fill Applicant Suburb.")
 
-                    if asp_number:
-                        if not _fill_by_label(page, label="ASP Number", value=asp_number):
-                            raise RuntimeError("Failed to fill ASP Number.")
-
-                    if asp_level:
-                        if not _select_by_label(page, label="ASP Level", option_text=asp_level):
-                            raise RuntimeError("Failed to select ASP Level.")
-
+                    if applicantPostcode:
+                        print("applicant postcode")
+                        if not _fill_by_label(page, label="Postcode", value=applicantPostcode):
+                            raise RuntimeError("Failed to fill Applicant Postcode.")
+                    
+                    if applicantPhoneNo:
+                        if not _fill_by_label(page, label="Phone Number", value=applicantPhoneNo,index=0):
+                            raise RuntimeError("Failed to fill Phone Number.")    
                     if customer_type:
                         if not _select_by_label(page, label="Customer Type", option_text=customer_type):
                             raise RuntimeError("Failed to select Customer Type.")
                         # Applicant sub-sections can re-render after customer type is selected.
                         page.wait_for_timeout(300)
 
-                    if title:
-                        if not _select_by_label(page, label="Title", option_text=title):
-                            raise RuntimeError("Failed to select Title.")
-                        page.wait_for_timeout(200)
-
-                    if first_name:
-                        if not _fill_all_visible_by_label(page, label="First Name", value=first_name):
-                            raise RuntimeError("Failed to fill First Name.")
-
-                    if last_name:
-                        if not _fill_all_visible_by_label(page, label="Last Name", value=last_name):
-                            raise RuntimeError("Failed to fill Last Name.")
-
-                    if email_address:
-                        email_ok = _fill_all_visible_by_label(
-                            page, label="Email Address", value=email_address, exact=True
-                        )
-                        confirm_ok = _fill_all_visible_by_label(
-                            page, label="Confirm Email Address", value=email_address, exact=True
-                        )
-                        # 
-                        page.wait_for_timeout(250)
-                        section = page.get_by_title("Retail Customer Details or")
-                        _fill_by_label(section, label="Email Address", value=email_address, exact=False, index=0)
-                        # section.get_by_label("*Email Address").fill(email_address)
-                        _fill_by_label(
-                            page, label="Confirm Email Address", value=email_address, exact=True, index=1
-                        )
-                        if not email_ok:
-                            raise RuntimeError("Failed to fill Email Address.")
-                        if not confirm_ok:
-                            raise RuntimeError("Failed to fill Confirm Email Address.")
-
-                    if title:
-                        if not _select_by_label(page, label="Title", option_text=title,index=1):
-                            raise RuntimeError("Failed to select Title.")
-                        page.wait_for_timeout(200)
-                    if street_number_rmb:
-                        if not _fill_by_label(page, label="Street Number/RMB", value=street_number_rmb):
-                            raise RuntimeError("Failed to fill Applicant Street Number/RMB.")
-
-                    if street_name:
-                        if not _fill_by_label(page, label="Street Name", value=street_name):
-                            raise RuntimeError("Failed to fill Applicant Street Name.")
-
-                    if suburb:
-                        if not _fill_by_label(page, label="Suburb", value=suburb):
-                            raise RuntimeError("Failed to fill Applicant Suburb.")
-
-                    if postcode:
-                        if not _fill_by_label(page, label="Postcode", value=postcode):
-                            raise RuntimeError("Failed to fill Applicant Postcode.")
+                    if customerTitle:
+                         if not _select_by_label(page, label="Title", option_text=customerTitle,index=1):
+                            raise RuntimeError("Failed to fill  customer Title.")
                     
-                    if phone_no:
-                        if not _fill_all_visible_by_label(page, label="Phone Number", value=phone_no):
-                            raise RuntimeError("Failed to fill Phone Number.")
+                    if customerFirstName:
+                        if not _fill_by_label(page, label="First Name", value=customerFirstName,index=1):
+                            raise RuntimeError("Failed to fill First Name.")    
+                       
+                    if customerLastName:
+                        if not _fill_by_label(page, label="Last Name", value=customerLastName,index=1):
+                            raise RuntimeError("Failed to fill Last Name.")
+                        
+                    if customerEmailAddress:   
+                        section = page.get_by_title("Retail Customer Details or")
+                        
+                        if not _fill_by_label(section,label="Email Address",value=customerEmailAddress,exact=False, index=0):
+                            raise RuntimeError("Failed to fill the customer email address") 
+                        if not _fill_by_label(page,label="Confirm Email Address",value=customerEmailAddress,index=1):
+                            raise RuntimeError("Failed to fill the customer confirm email address") 
+                    if customerPhoneNumber:
+                        if not _fill_by_label(page, label="Phone Number", value=customerPhoneNumber,index=1):
+                            raise RuntimeError("Failed to fill customer Phone Number.")
 
-                    # if has_applicant_payload:
-                    #     applicant_next_btn = page.get_by_role("button", name="Next").or_(
-                    #         page.get_by_role("button", name="Save & Next")
-                    #     ).first
-                    #     if applicant_next_btn.count() == 0:
-                    #         raise RuntimeError("Applicant Next button not found.")
-                    #     applicant_next_btn.click()
-                    #     page.wait_for_load_state("domcontentloaded")
-                    #     try:
-                    #         page.wait_for_url("**/service/**", timeout=8000)
-                    #     except Exception:
-                    #         # Retry on duplicate fields where the required values are on the second visible block.
-                    #         if customer_type:
-                    #             _select_by_label(page, label="Customer Type", option_text=customer_type, index=1)
-                    #         if title:
-                    #             _select_by_label(page, label="Title", option_text=title, index=1)
-                    #         if first_name:
-                    #             _fill_by_label(page, label="First Name", value=first_name, index=1)
-                    #         if last_name:
-                    #             _fill_by_label(page, label="Last Name", value=last_name, index=1)
-                    #         if email_address:
-                    #             _fill_all_visible_by_label(page, label="Email Address", value=email_address, exact=True)
-                    #             _fill_by_label(
-                    #                 page, label="Confirm Email Address", value=email_address, exact=True, index=1
-                    #             )
-                    #         if phone_no:
-                    #             _fill_by_label(page, label="Phone Number", value=phone_no, index=1)
-
-                    #         applicant_next_btn = page.get_by_role("button", name="Next").or_(
-                    #             page.get_by_role("button", name="Save & Next")
-                    #         ).first
-                    #         applicant_next_btn.click()
-                    #         page.wait_for_load_state("domcontentloaded")
-                    #         try:
-                    #             page.wait_for_url("**/service/**", timeout=FORM_WAIT_TIMEOUT_MS)
-                    #         except Exception:
-                    #             raise RuntimeError(
-                    #                 f"Applicant step did not navigate to Service Selection. Current URL: {page.url}"
-                    #             )
                        
                     # Click Next / Save & Next -> Applicant
                     next_btn = page.get_by_role("button", name="Next")
@@ -636,19 +748,18 @@ def fill_location(data: dict[str, Any]) -> dict[str, Any]:
                         modal = page.locator(".modal-body:visible").first
                         modal.click()
                         page.locator("body").press("Escape")
-                        fill_load_details(page,data)
-
-
+                       
                         
+                        if(service=="Alter Existing Connection"):
+                            fill_load_details_alter(page,data)
+                            # embedded generation
+                            fill_embedded_generation(page,data)
+                            page.get_by_role("button", name=re.compile(r"Next", re.I)).click()
 
-                    # dropdown = page.locator("ng-select#select-single-0 .ng-select-container")
-                    # dropdown.wait_for(state="visible")
-                    # dropdown.scroll_into_view_if_needed()
-                    # dropdown.click()
+                            
+                        get_pdf_api_pay(page,data) 
+                              
 
-                    # page.wait_for_selector("ng-dropdown-panel [role='option']")
-                    # page.get_by_role("option", name=applicant_type).click()
-                    
                     result["success"] = True
                     result["message"] = (
                         "Location + Applicant + Service Selection + Load Details filled."

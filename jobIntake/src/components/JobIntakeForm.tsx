@@ -11,6 +11,9 @@ import {
   type SetStateAction,
 } from "react";
 import CCEWForm from "./CCEWForm";
+import AusgridForm, { type AusgridFormState } from "./AusgridForm";
+import GreenDealForm from "./GreenDealForm";
+import BridgeSelectForm from "./BridgeSelectForm";
 import PageSidebar, { type PageSidebarSection } from "./PageSidebar";
 
 const jobIntakeBaseSidebarSections: PageSidebarSection[] = [
@@ -41,6 +44,12 @@ const ccewSidebarSections: PageSidebarSection[] = [
   { id: "ccew-section-7", label: "Test Report" },
   { id: "ccew-section-8", label: "Testers License Details" },
   { id: "ccew-section-9", label: "Submit CCEW" },
+];
+
+const ausgridSidebarSections: PageSidebarSection[] = [
+  { id: "ausgrid-section-1", label: "Customer Fields" },
+  { id: "ausgrid-section-2", label: "Applicant Fields" },
+  { id: "ausgrid-section-3", label: "Service Selection" },
 ];
 
 type FormElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -242,6 +251,101 @@ const AI_FORCE_OVERWRITE_FIELDS = new Set<SuggestibleFieldKey>([
   "batteryInstallationLocation",
   "backupProtectionRequired",
   "installerPresenceRequired",
+]);
+const BRIDGESELECT_SUGGESTION_FIELDS = new Set<SuggestibleFieldKey>([
+  "jobType",
+  "ownerType",
+  "firstName",
+  "lastName",
+  "customerFullName",
+  "email",
+  "mobile",
+  "phone",
+  "streetAddress",
+  "suburb",
+  "state",
+  "postcode",
+  "propertyType",
+  "nmi",
+  "electricityRetailer",
+  "accountHolderName",
+  "billIssueDate",
+  "panelManufacturer",
+  "panelModel",
+  "panelQuantity",
+  "panelSystemSize",
+  "inverterManufacturer",
+  "inverterSeries",
+  "inverterModel",
+  "inverterQuantity",
+  "batteryManufacturer",
+  "batterySeries",
+  "batteryModel",
+  "batteryQuantity",
+  "batteryCapacity",
+  "crmId",
+  "poNumber",
+  "orderReference",
+  "proposalNumber",
+  "retailerEntityName",
+  "stcTraderName",
+  "installationEmail",
+  "installationPhone",
+  "installerName",
+  "installerId",
+  "installationDate",
+  "preferredInstallDate",
+  "installationAddress",
+  "installationPostcode",
+  "installationStreetName",
+  "installationSuburb",
+  "installationState",
+  "designerName",
+  "electricianName",
+  "operationsApplicantName",
+  "operationsContact",
+  "operationsEmail",
+  "connectedType",
+  "installationStyle",
+  "batteryInstallationType",
+  "batteryInstallationLocation",
+  "existingSolarRetained",
+  "backupProtectionRequired",
+  "installerPresenceRequired",
+  "specialSiteNotes",
+  "customerInstructions",
+  "sitePreparationNotes",
+  "bstcCount",
+  "isBstcJob",
+  "bstcDiscountOutOfPocket",
+  "vppCapable",
+  "retailerInvolvedInBattery",
+  "roomBehindBatteryWall",
+  "addingCapacityExistingBattery",
+  "existingNominalOutput",
+  "existingUsableOutput",
+  "prcDistributorAreaNetwork",
+  "batteryPhysicalLocation",
+  "prcBess1Count",
+  "isBess1Job",
+  "prcBess1Discount",
+  "prcBess2Count",
+  "isBess2Job",
+  "prcBess2Discount",
+  "prcActivityType",
+  "landTitleType",
+  "landZoning",
+  "streetNumberRmb",
+  "lotNumber",
+  "lotDpNumber",
+]);
+const GREENDEAL_EXCLUDED_FIELDS = new Set<SuggestibleFieldKey>([
+  ...Array.from(BRIDGESELECT_SUGGESTION_FIELDS),
+  "landTitleType",
+  "landZoning",
+  "streetNumberRmb",
+  "lotNumber",
+  "lotDpNumber",
 ]);
 
 const INSTALLER_DIRECTORY = [
@@ -879,7 +983,7 @@ export default function JobIntakeForm() {
   const submissionStatusRef = useRef<HTMLDivElement>(null);
   const [touchedFields, setTouchedFields] = useState<Set<keyof FormState>>(new Set());
   const [currentSection, setCurrentSection] = useState("section-1");
-  const [activeView, setActiveView] = useState<"form" | "ccew">("form");
+  const [activeView, setActiveView] = useState<"form" | "ccew" | "ausgrid">("form");
   const [supportingDocsFiles, setSupportingDocsFiles] = useState<File[]>([]);
   const [extractionJobId, setExtractionJobId] = useState<string>("");
   const [extractionStatus, setExtractionStatus] = useState<ExtractionJobStatusType>("idle");
@@ -889,6 +993,15 @@ export default function JobIntakeForm() {
   const [ccewSuggestions, setCcewSuggestions] = useState<Record<string, unknown> | null>(null);
   const [suggestionSourceData, setSuggestionSourceData] = useState<Record<string, unknown> | null>(null);
   const [appliedSuggestionFields, setAppliedSuggestionFields] = useState<Set<SuggestibleFieldKey>>(new Set());
+  const [ausgridSuggestedPatch, setAusgridSuggestedPatch] = useState<Partial<AusgridFormState> | null>(null);
+  const [ausgridSuggestionToken, setAusgridSuggestionToken] = useState(0);
+  const [ausgridClearSuggestionToken, setAusgridClearSuggestionToken] = useState(0);
+  const [ausgridRequiredProgress, setAusgridRequiredProgress] = useState({ filled: 0, total: 23, percent: 0 });
+  const [ausgridSectionProgress, setAusgridSectionProgress] = useState<Record<string, { filled: number; total: number }>>({
+    "ausgrid-section-1": { filled: 0, total: 11 },
+    "ausgrid-section-2": { filled: 0, total: 11 },
+    "ausgrid-section-3": { filled: 0, total: 1 },
+  });
   const jobIntakeSidebarSections = useMemo(() => {
     if (destination !== "Ausgrid") return jobIntakeBaseSidebarSections;
     const out = [...jobIntakeBaseSidebarSections];
@@ -915,6 +1028,7 @@ export default function JobIntakeForm() {
   const isBatteryJob = form.jobType === "Battery Only" || form.jobType === "Solar PV + Battery";
   const isBridgeSelectDestination = destination === "BridgeSelect";
   const isAusgridDestination = destination === "Ausgrid";
+  const DestinationFormWrapper = destination === "BridgeSelect" ? BridgeSelectForm : GreenDealForm;
 
   useEffect(() => {
     if (!toast.show) return;
@@ -923,7 +1037,11 @@ export default function JobIntakeForm() {
   }, [toast.show]);
 
   useEffect(() => {
-    const selector = activeView === "ccew" ? 'section[id^="ccew-section-"]' : 'section[id^="section-"]';
+    const selector = activeView === "ccew"
+      ? 'section[id^="ccew-section-"]'
+      : activeView === "ausgrid"
+        ? 'section[id^="ausgrid-section-"]'
+        : 'section[id^="section-"]';
     const sections = Array.from(document.querySelectorAll<HTMLElement>(selector));
     if (sections.length === 0) return;
 
@@ -1237,6 +1355,38 @@ export default function JobIntakeForm() {
     return (await response.json()) as ExtractionResultPayload;
   };
 
+  const buildAusgridSuggestedPatch = (suggestions: MappedSuggestions): Partial<AusgridFormState> => {
+    const patch: Partial<AusgridFormState> = {};
+    const setIfNonEmpty = (key: keyof AusgridFormState, value: unknown) => {
+      if (typeof value !== "string") return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      patch[key] = trimmed;
+    };
+
+    setIfNonEmpty("customerStreetName", suggestions.streetAddress);
+    if (typeof suggestions.landTitleType === "string" && suggestions.landTitleType.trim()) {
+      const normalizedLandTitle = suggestions.landTitleType.replace("Title", "").trim();
+      if (normalizedLandTitle) {
+        patch.customerLandTitleType = normalizedLandTitle;
+      }
+    }
+    setIfNonEmpty("customerLandZoning", suggestions.landZoning);
+    setIfNonEmpty("customerStreetNumberRmb", suggestions.streetNumberRmb);
+    setIfNonEmpty("customerPostCode", suggestions.postcode);
+    setIfNonEmpty("customerTitle", (suggestions as Record<string, unknown>).title);
+    setIfNonEmpty("customerEmailAddress", suggestions.email);
+    setIfNonEmpty("customerFirstName", suggestions.firstName);
+    setIfNonEmpty("customerLastName", suggestions.lastName);
+    if (typeof suggestions.mobile === "string" && suggestions.mobile.trim()) {
+      patch.customerPhoneNumber = suggestions.mobile.trim();
+    } else {
+      setIfNonEmpty("customerPhoneNumber", suggestions.phone);
+    }
+
+    return patch;
+  };
+
   const handleExtractAndPrefill = async () => {
     if (supportingDocsFiles.length === 0) {
       setExtractionError("Upload at least one document before extraction.");
@@ -1251,6 +1401,8 @@ export default function JobIntakeForm() {
       setCcewSuggestions(null);
       setSuggestionSourceData(null);
       setAppliedSuggestionFields(new Set());
+      setAusgridSuggestedPatch(null);
+      setAusgridSuggestionToken(0);
 
       const formData = new FormData();
       supportingDocsFiles.forEach((file) => formData.append("files", file));
@@ -1276,9 +1428,12 @@ export default function JobIntakeForm() {
       }
 
       const result = await fetchJobIntakeResult(queued.job_id);
+      const mapped = result.mapped_form_suggestions || {};
       setMappedSuggestions(result.mapped_form_suggestions || {});
       setCcewSuggestions(result.ccew_suggestions ?? null);
       setSuggestionSourceData(result.raw_extracted_data || {});
+      const ausgridPatch = buildAusgridSuggestedPatch(mapped);
+      setAusgridSuggestedPatch(ausgridPatch);
       setExtractionStatus("prefilled");
       setExtractionMessage("Extraction complete. Review and apply suggestions.");
       setToast({ show: true, type: "success", message: "Documents uploaded. Extraction complete. Review and apply suggestions." });
@@ -1293,6 +1448,15 @@ export default function JobIntakeForm() {
   const handleApplySuggestions = () => {
     if (!mappedSuggestions) return;
 
+    if (activeView === "ausgrid") {
+      const ausgridPatch = buildAusgridSuggestedPatch(mappedSuggestions);
+      setAusgridSuggestedPatch(ausgridPatch);
+      setAusgridSuggestionToken((v) => v + 1);
+      setExtractionMessage("Applied suggestions to Ausgrid form.");
+      setToast({ show: true, type: "success", message: "Applied suggestions to Ausgrid fields." });
+      return;
+    }
+
     const nextForm = { ...form };
     const appliedKeys = new Set<SuggestibleFieldKey>();
     const mappedEntries = Object.entries(mappedSuggestions as Record<string, unknown>);
@@ -1304,6 +1468,8 @@ export default function JobIntakeForm() {
         continue;
       }
       const key = rawKey as SuggestibleFieldKey;
+      if (destination === "BridgeSelect" && !BRIDGESELECT_SUGGESTION_FIELDS.has(key)) continue;
+      if (destination === "GreenDeal" && GREENDEAL_EXCLUDED_FIELDS.has(key)) continue;
       const value = rawValue as FormState[SuggestibleFieldKey];
       if (typeof value === "undefined" || value === null) continue;
       const currentValue = form[key];
@@ -1362,6 +1528,9 @@ export default function JobIntakeForm() {
     setCcewSuggestions(null);
     setSuggestionSourceData(null);
     setAppliedSuggestionFields(new Set());
+    setAusgridSuggestedPatch(null);
+    setAusgridSuggestionToken(0);
+    setAusgridClearSuggestionToken((v) => v + 1);
     setExtractionStatus("idle");
     setExtractionError("");
     setExtractionJobId("");
@@ -1410,16 +1579,18 @@ export default function JobIntakeForm() {
         <form noValidate onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
           <PageSidebar
             badge={activeView === "form" ? "Operations Portal" : undefined}
-            title={activeView === "form" ? "Create New Job" : "CCEW"}
+            title={activeView === "form" ? "Create New Job" : activeView === "ccew" ? "CCEW" : "Ausgrid"}
             subtitle={
               activeView === "form"
                 ? "Single master job intake for Solar and Battery, designed to sync to GreenDeal and BridgeSelect."
-                : "Certificate Compliance Electrical Work – fill and download the PDF."
+                : activeView === "ccew"
+                  ? "Certificate Compliance Electrical Work – fill and download the PDF."
+                  : "Dedicated Ausgrid customer and applicant submission form."
             }
-            sections={activeView === "form" ? jobIntakeSidebarSections : ccewSidebarSections}
+            sections={activeView === "form" ? jobIntakeSidebarSections : activeView === "ccew" ? ccewSidebarSections : ausgridSidebarSections}
             currentSection={currentSection}
             onSectionChange={setCurrentSection}
-            sectionProgress={activeView === "form" ? sectionRequiredProgress : undefined}
+            sectionProgress={activeView === "form" ? sectionRequiredProgress : activeView === "ausgrid" ? ausgridSectionProgress : undefined}
           />
 
           <main className="space-y-6">
@@ -1446,7 +1617,17 @@ export default function JobIntakeForm() {
                     <div className="relative mt-2">
                       <select
                         value={destination}
-                        onChange={(event) => setDestination(event.target.value as DestinationOption)}
+                        onChange={(event) => {
+                          const nextDestination = event.target.value as DestinationOption;
+                          setDestination(nextDestination);
+                          if (nextDestination === "Ausgrid") {
+                            setActiveView("ausgrid");
+                            setCurrentSection("ausgrid-section-1");
+                          } else if (activeView === "ausgrid") {
+                            setActiveView("form");
+                            setCurrentSection("section-1");
+                          }
+                        }}
                         className="w-full appearance-none rounded-xl border border-white/15 bg-slate-900/40 px-3 py-2 pr-8 text-sm font-semibold text-white outline-none transition focus:border-white/30 focus:ring-2 focus:ring-white/20"
                       >
                         <option value="GreenDeal" className="bg-slate-900 text-white">
@@ -1528,7 +1709,7 @@ export default function JobIntakeForm() {
               />
             ) : null}
 
-            {activeView === "form" ? (
+            {activeView !== "ccew" ? (
             <>
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Upload Supporting Documents</h2>
@@ -1634,20 +1815,34 @@ export default function JobIntakeForm() {
               <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="text-sm font-semibold text-emerald-900">Required Fields Progress ({destination})</div>
-                  <div className="text-sm font-semibold text-emerald-800">{requiredFieldProgress.percent}%</div>
+                  <div className="text-sm font-semibold text-emerald-800">
+                    {activeView === "ausgrid" ? ausgridRequiredProgress.percent : requiredFieldProgress.percent}%
+                  </div>
                 </div>
                 <div className="mt-2 h-3 overflow-hidden rounded-full bg-emerald-100">
                   <div
                     className="h-full rounded-full bg-emerald-600 transition-all duration-300"
-                    style={{ width: `${requiredFieldProgress.percent}%` }}
+                    style={{ width: `${activeView === "ausgrid" ? ausgridRequiredProgress.percent : requiredFieldProgress.percent}%` }}
                   />
                 </div>
                 <div className="mt-2 text-xs text-emerald-800">
-                  {requiredFieldProgress.filled}/{requiredFieldProgress.total} fields are filled.
+                  {activeView === "ausgrid"
+                    ? `${ausgridRequiredProgress.filled}/${ausgridRequiredProgress.total} fields are filled.`
+                    : `${requiredFieldProgress.filled}/${requiredFieldProgress.total} fields are filled.`}
                 </div>
               </div>
             </section>
 
+            {activeView === "ausgrid" ? (
+              <AusgridForm
+                suggestedPatch={ausgridSuggestedPatch}
+                suggestionApplyToken={ausgridSuggestionToken}
+                clearSuggestionToken={ausgridClearSuggestionToken}
+                onProgressChange={setAusgridRequiredProgress}
+                onSectionProgressChange={setAusgridSectionProgress}
+              />
+            ) : (
+            <DestinationFormWrapper>
             <Section id="section-1" title="1. Job Type" subtitle="High-level job classification shown first for quicker routing." currentSection={currentSection} setCurrentSection={setCurrentSection}>
               <SelectField label="Job type" name="jobType" value={form.jobType} onChange={handleChange} required={isRequiredField("jobType")} error={errors.jobType} options={["Solar PV", "Solar PV + Battery", "Battery Only"]} {...getAiFieldState("jobType")} />
               <SelectField label="Owner type" name="ownerType" value={form.ownerType} onChange={handleChange} required={isRequiredField("ownerType")} error={errors.ownerType} options={["Individual", "Company"]} {...getAiFieldState("ownerType")} />
@@ -1887,7 +2082,6 @@ export default function JobIntakeForm() {
                   {submitStatus === "success" && (
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white" aria-hidden>✓</span>
                         <div>
                           <div className="font-semibold text-emerald-800">Submission successful</div>
                           <div className="text-sm text-emerald-700">{submitMessage}</div>
@@ -1914,7 +2108,6 @@ export default function JobIntakeForm() {
                   {submitStatus === "error" && (
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-white" aria-hidden>✕</span>
                         <div>
                           <div className="font-semibold text-rose-800">Submission failed</div>
                           <div className="text-sm text-rose-700">{submitMessage}</div>
@@ -1977,6 +2170,8 @@ export default function JobIntakeForm() {
                 </button>
               </div>
             </div>
+            </DestinationFormWrapper>
+            )}
             </>
             ) : null}
 
@@ -1987,7 +2182,6 @@ export default function JobIntakeForm() {
                 }`}
                 role="alert"
               >
-                <span className="shrink-0 text-lg">{toast.type === "success" ? "✓" : "✕"}</span>
                 <p className="text-sm font-medium">{toast.message}</p>
                 <button
                   type="button"

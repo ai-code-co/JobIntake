@@ -108,6 +108,37 @@ def _parse_street_number_name(street_address: str) -> Tuple[str, str]:
     return "", normalized
 
 
+def _normalize_land_title_type(value: Any) -> str:
+    text = _normalize_text(value).lower()
+    if not text:
+        return ""
+    if "torrens" in text:
+        return "Torrens"
+    if "strata" in text:
+        return "Strata"
+    if "community" in text:
+        return "Community Title"
+    if "public" in text:
+        return "Public"
+    if "other" in text:
+        return "Other"
+    return ""
+
+
+def _infer_title_from_name(first_name: str, full_name: str) -> str:
+    # Lightweight fallback heuristic only when title is absent in source.
+    source = _normalize_text(first_name or full_name).lower()
+    if not source:
+        return "Mr"
+    female_names = {
+        "mary", "susan", "linda", "jennifer", "jessica", "sarah", "ashley", "emily",
+        "emma", "olivia", "ava", "mia", "isabella", "charlotte", "amelia", "harper",
+        "sophia", "chloe", "grace", "hannah", "zoe", "ella", "lily", "ruby",
+    }
+    token = source.split(" ")[0]
+    return "Miss" if token in female_names else "Mr"
+
+
 def _build_prompt(text: str) -> str:
     return f"""You are extracting information for a Job Intake form from uploaded documents.
 
@@ -142,6 +173,7 @@ Return JSON in this exact shape:
     "full_name": "",
     "first_name": "",
     "last_name": "",
+    "title": "",
     "email": "",
     "mobile": "",
     "phone": "",
@@ -150,6 +182,8 @@ Return JSON in this exact shape:
   "address": {{
     "full_address": "",
     "street_address": "",
+    "street_number_rmb": "",
+    "land_title_type": "",
     "suburb": "",
     "state": "",
     "postcode": "",
@@ -268,6 +302,7 @@ Rules:
 3. If series is unknown, return series="" (do NOT duplicate model).
 4. Remove trailing bracketed compliance notes from model only (e.g. "(AS4777-2 2020)").
 5. Do not change non-equipment fields because they are not provided here.
+6. if tiltle is present in the source text, then use it to set the title in the JSON otherwise think if it's a female name then set the title to Miss otherwise set the title to Mr.
 
 Current extracted equipment JSON:
 {json.dumps({"system": _safe_get(extracted, "system", default={})}, ensure_ascii=False)}
@@ -324,6 +359,7 @@ def _fallback_extract(text: str) -> Dict[str, Any]:
             "full_name": "",
             "first_name": "",
             "last_name": "",
+            "title": "",
             "email": email_match.group(0) if email_match else "",
             "mobile": phone_match.group(0) if phone_match else "",
             "phone": "",
@@ -332,6 +368,8 @@ def _fallback_extract(text: str) -> Dict[str, Any]:
         "address": {
             "full_address": "",
             "street_address": "",
+            "street_number_rmb": "",
+            "land_title_type": "",
             "suburb": "",
             "state": "",
             "postcode": "",
@@ -448,6 +486,10 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
     suggestions["firstName"] = first_name
     suggestions["lastName"] = last_name
     suggestions["customerFullName"] = full_name
+    title = _normalize_text(_safe_get(customer, "title"))
+    if not title:
+        title = _infer_title_from_name(first_name, full_name)
+    suggestions["title"] = title
     suggestions["email"] = _normalize_text(_safe_get(customer, "email"))
     suggestions["mobile"] = _normalize_text(_safe_get(customer, "mobile"))
     suggestions["phone"] = _normalize_text(_safe_get(customer, "phone"))
@@ -477,12 +519,18 @@ def map_ai_payload_to_form(ai_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Lis
     suggestions["postcode"] = postcode
 
     install_street = street or full_address
-    _, parsed_install_street_name = _parse_street_number_name(install_street)
+    parsed_street_number, parsed_install_street_name = _parse_street_number_name(install_street)
     suggestions["installationAddress"] = install_street
     suggestions["installationSuburb"] = suburb
     suggestions["installationState"] = state
     suggestions["installationPostcode"] = postcode
     suggestions["installationStreetName"] = parsed_install_street_name or install_street
+    street_number_rmb = _normalize_text(_safe_get(address, "street_number_rmb")) or parsed_street_number
+    if street_number_rmb:
+        suggestions["streetNumberRmb"] = street_number_rmb
+    land_title_type = _normalize_land_title_type(_safe_get(address, "land_title_type"))
+    if land_title_type:
+        suggestions["landTitleType"] = land_title_type
 
     property_type = _normalize_text(_safe_get(address, "property_type")).lower()
     if property_type:

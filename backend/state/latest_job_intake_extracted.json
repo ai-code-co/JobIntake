@@ -1,32 +1,35 @@
 {
-  "job_id": "b1d4697a",
-  "created_at": "2026-03-24T17:58:55.849017",
+  "job_id": "9c0765d3",
+  "created_at": "2026-03-27T16:16:05.260441",
   "status": "prefilled",
   "source_files": [
-    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\b1d4697a_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\9c0765d3_Solar Proposal for Steven John Baumann at 46 First Street 2752 NSW (7nXgmiWSag).pdf"
   ],
   "raw_extracted_data": {
     "customer": {
-      "full_name": "Slawomir Postek",
-      "first_name": "Slawomir",
-      "last_name": "Postek",
-      "email": "slav_p@hotmail.com",
-      "mobile": "0412417344",
+      "full_name": "Steven John Baumann",
+      "first_name": "Steven",
+      "last_name": "Baumann",
+      "title": "",
+      "email": "steven.jaye.baumann@hotmail.com",
+      "mobile": "0408493718",
       "phone": "",
       "owner_type": ""
     },
     "address": {
-      "full_address": "4 Jardine Court, Sandhurst, VIC 3977",
-      "street_address": "4 Jardine Court",
-      "suburb": "Sandhurst",
-      "state": "VIC",
-      "postcode": "3977",
+      "full_address": "46 First Street, Warragamba NSW 2752",
+      "street_address": "46 First Street",
+      "street_number_rmb": "",
+      "land_title_type": "",
+      "suburb": "Warragamba",
+      "state": "NSW",
+      "postcode": "2752",
       "property_type": ""
     },
     "utility": {
       "nmi": "",
       "electricity_retailer": "",
-      "electricity_distributor": "United Energy Distribution",
+      "electricity_distributor": "Endeavour Energy",
       "account_holder_name": "",
       "bill_issue_date": ""
     },
@@ -61,10 +64,10 @@
     },
     "operations": {
       "installer_name": "",
-      "designer_name": "Nick C",
+      "designer_name": "",
       "electrician_name": "",
-      "operations_contact": "0451 886 798",
-      "operations_email": "info@sun-vault.com.au"
+      "operations_contact": "",
+      "operations_email": ""
     },
     "logistics": {
       "pickup_location": "",
@@ -83,32 +86,34 @@
     },
     "bstc": {
       "bstc_count": "420",
-      "bstc_out_of_pocket": "$4,600.00"
+      "bstc_out_of_pocket": "$15,540.00"
     },
     "pricing": {
-      "total_incl_gst": "$4,600.00",
-      "included_gst": "$1,830.91",
-      "bstc_discount_amount": "-$15,540.00"
+      "total_incl_gst": "$4,400.00",
+      "included_gst": "$1,812.73",
+      "bstc_discount_amount": ""
     },
     "notes": ""
   },
   "mapped_form_suggestions": {
-    "firstName": "Slawomir",
-    "lastName": "Postek",
-    "customerFullName": "Slawomir Postek",
-    "email": "slav_p@hotmail.com",
-    "mobile": "0412417344",
-    "streetAddress": "4 Jardine Court",
-    "suburb": "Sandhurst",
-    "state": "VIC",
-    "postcode": "3977",
-    "installationAddress": "4 Jardine Court",
-    "installationSuburb": "Sandhurst",
-    "installationState": "VIC",
-    "installationPostcode": "3977",
-    "installationStreetName": "Jardine Court",
-    "electricityRetailer": "United Energy Distribution",
-    "accountHolderName": "Slawomir Postek",
+    "firstName": "Steven",
+    "lastName": "Baumann",
+    "customerFullName": "Steven John Baumann",
+    "title": "Mr",
+    "email": "steven.jaye.baumann@hotmail.com",
+    "mobile": "0408493718",
+    "streetAddress": "46 First Street",
+    "suburb": "Warragamba",
+    "state": "NSW",
+    "postcode": "2752",
+    "installationAddress": "46 First Street",
+    "installationSuburb": "Warragamba",
+    "installationState": "NSW",
+    "installationPostcode": "2752",
+    "installationStreetName": "First Street",
+    "streetNumberRmb": "46",
+    "electricityRetailer": "Endeavour Energy",
+    "accountHolderName": "Steven John Baumann",
     "inverterIncluded": true,
     "inverterManufacturer": "Hoymiles",
     "inverterSeries": "HYS-LV",
@@ -126,30 +131,27 @@
     "backupProtectionRequired": "Yes",
     "storeyType": "Single story",
     "bstcCount": "420",
-    "bstcDiscountOutOfPocket": "$4,600.00",
-    "designerName": "Nick C",
-    "operationsContact": "0451 886 798",
-    "operationsEmail": "info@sun-vault.com.au",
-    "poNumber": "24032026-19"
+    "bstcDiscountOutOfPocket": "$15,540.00",
+    "poNumber": "27032026-10"
   },
   "ccew_suggestions": {
-    "installationStreetNumber": "4",
-    "installationStreetName": "Jardine Court",
-    "installationSuburb": "Sandhurst",
-    "installationState": "VIC",
-    "installationPostCode": "3977",
-    "installationPropertyName": "4 Jardine Court, Sandhurst, VIC 3977",
+    "installationStreetNumber": "46",
+    "installationStreetName": "First Street",
+    "installationSuburb": "Warragamba",
+    "installationState": "NSW",
+    "installationPostCode": "2752",
+    "installationPropertyName": "46 First Street, Warragamba NSW 2752",
     "customerSameAsInstallation": true,
-    "customerFirstName": "Slawomir",
-    "customerLastName": "Postek",
-    "customerStreetNumber": "4",
-    "customerStreetName": "Jardine Court",
-    "customerSuburb": "Sandhurst",
-    "customerState": "VIC",
-    "customerPostCode": "3977",
-    "customerEmail": "slav_p@hotmail.com",
-    "ownerEmail": "slav_p@hotmail.com",
-    "customerMobileNo": "0412417344",
+    "customerFirstName": "Steven",
+    "customerLastName": "Baumann",
+    "customerStreetNumber": "46",
+    "customerStreetName": "First Street",
+    "customerSuburb": "Warragamba",
+    "customerState": "NSW",
+    "customerPostCode": "2752",
+    "customerEmail": "steven.jaye.baumann@hotmail.com",
+    "ownerEmail": "steven.jaye.baumann@hotmail.com",
+    "customerMobileNo": "0408493718",
     "typeResidential": true,
     "workAdditionAlteration": true,
     "equipmentGenerationChecked": true,
@@ -160,9 +162,7 @@
     "equipmentStorageRating": "10.24",
     "equipmentStorageNumber": "5",
     "equipmentStorageParticulars": "PLPA-L1-10K2",
-    "energyProvider": "United Energy Distribution",
-    "installerFirstName": "Nick",
-    "installerLastName": "C"
+    "energyProvider": "Endeavour Energy"
   },
   "unmapped_notes": []
 }

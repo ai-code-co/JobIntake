@@ -1,4 +1,5 @@
 from datetime import datetime
+import asyncio
 import os
 from pathlib import Path
 from threading import Lock, Thread
@@ -8,10 +9,10 @@ import shutil
 import time
 import uuid
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, FileResponse
 
 from ai_parser import extract_from_multiple_pdfs
 from greendeal_bot_org import create_job as greendeal_create_job
@@ -45,6 +46,8 @@ STATE_DIR = BASE_DIR / "state"
 JOBS_DIR = STATE_DIR / "jobs"
 EXTRACTIONS_DIR = STATE_DIR / "extractions"
 JOB_INTAKE_RESULTS_DIR = STATE_DIR / "job_intake_results"
+AUSGRID_SUMMARY_DIR = STATE_DIR / "ausgrid_summary"
+LATEST_AUSGRID_SUMMARY_FILE = AUSGRID_SUMMARY_DIR / "ausgrid_summary.pdf"
 LATEST_EXTRACTED_FILE = STATE_DIR / "latest_extracted.json"
 LATEST_JOB_INTAKE_EXTRACTED_FILE = STATE_DIR / "latest_job_intake_extracted.json"
 PO_COUNTER_FILE = STATE_DIR / "po_counter.json"
@@ -54,6 +57,7 @@ STATE_DIR.mkdir(exist_ok=True)
 JOBS_DIR.mkdir(exist_ok=True)
 EXTRACTIONS_DIR.mkdir(exist_ok=True)
 JOB_INTAKE_RESULTS_DIR.mkdir(exist_ok=True)
+AUSGRID_SUMMARY_DIR.mkdir(exist_ok=True)
 
 PO_LOCK = Lock()
 
@@ -429,25 +433,72 @@ async def ccew_generate_pdf(payload: dict):
 
 @app.post("/ausgrid/fill")
 async def ausgrid_fill(payload: dict):
-    """Fill Ausgrid portal Location step from Job Intake form payload."""
+    """Fill Ausgrid portal from Job Intake/Ausgrid form payload."""
+    customer_land_title_type = (
+        payload.get("customerLandTitleType")
+        or payload.get("landTitleType")
+        or ""
+    )
+    customer_land_title_type = customer_land_title_type.replace("Starta", "Strata").strip()
+    
     data = {
-        "streetAddress": payload.get("streetAddress") or "",
-        "suburb": payload.get("suburb") or "",
-        "postcode": payload.get("postcode") or "",
-        "landTitleType": payload.get("landTitleType") or "",
-        "landZoning": payload.get("landZoning") or "",
-        "streetNumberRmb": payload.get("streetNumberRmb") or "",
+        # Location defaults to customer/applicant details from dedicated Ausgrid form.
+        "streetAddress": payload.get("customerStreetName") or "",
+        "suburb": payload.get("applicantSuburb") or "",
+        "postcode": payload.get("customerPostCode") or "",
+        "landTitleType": customer_land_title_type,
+        "landZoning": payload.get("customerLandZoning") or "",
+        "streetNumberRmb": payload.get("customerStreetNumberRmb") or "",
         "lotNumber": payload.get("lotNumber") or "",
         "lotDpNumber": payload.get("lotDpNumber") or "",
         "nmi": payload.get("nmi") or "",
-        "propertyName": payload.get("propertyName") or "",
-        "electricityRetailer": payload.get("electricityRetailer") or "",
-        "propertyType": payload.get("propertyType") or "",
-        "unitNumber": payload.get("unitNumber") or "",
+        # "propertyName": payload.get("propertyName") or "",
+        # "electricityRetailer": payload.get("electricityRetailer") or "",
+        # "propertyType": payload.get("propertyType") or "",
+        # "unitNumber": payload.get("unitNumber") or "",
+        
+        # Customer block
+        "customerType": payload.get("customerType") or "",
+        "title": payload.get("customerTitle") or payload.get("title") or "",
+        "firstName": payload.get("customerFirstName") or payload.get("firstName") or "",
+        "lastName": payload.get("customerLastName") or payload.get("lastName") or "",
+        "emailAddress": payload.get("customerEmailAddress") or payload.get("emailAddress") or "",
+        "email_address": payload.get("customerEmailAddress") or payload.get("emailAddress") or "",
+        "phoneNumber": payload.get("customerPhoneNumber") or payload.get("phoneNumber") or "",
+        "phoneNo": payload.get("customerPhoneNumber") or payload.get("phoneNo") or "",
+        
+        # Applicant block
+        "applicantType": payload.get("applicantType") or "",
+        "applicantTitle": payload.get("applicantTitle") or "",
+        "applicantFirstName": payload.get("applicantFirstName") or "",
+        "applicantLastName": payload.get("applicantLastName") or "",
+        "applicantEmailAddress": payload.get("applicantEmailAddress") or "",
+        "applicantSearchByABN/ACN": payload.get("applicantSearchByABN/ACN") or payload.get("applicantSearchByAbnAcn") or "",
+        "applicantCompanyName": payload.get("applicantCompanyName") or "",
+        "applicantStreetName": payload.get("applicantStreetName") or "",
+        "applicantSuburb": payload.get("applicantSuburb") or "",
+        "applicantPostCode": payload.get("applicantPostCode") or "",
+        "applicantPhoneNo": payload.get("applicantPhoneNo") or "",
+        # Service selection
+        "selectService": payload.get("selectService") or "",
     }
-    result = ausgrid_fill_location(data)
+    # Playwright sync API must not run inside FastAPI's asyncio event loop.
+    result = await asyncio.to_thread(ausgrid_fill_location, data)
+    if result.get("success") and LATEST_AUSGRID_SUMMARY_FILE.exists():
+        result["download_url"] = "/ausgrid/summary/download"
     status_code = 200 if result.get("success") else 500
     return JSONResponse(status_code=status_code, content=result)
+
+
+@app.get("/ausgrid/summary/download")
+async def download_ausgrid_summary():
+    if not LATEST_AUSGRID_SUMMARY_FILE.exists():
+        raise HTTPException(status_code=404, detail="Ausgrid summary PDF not found.")
+    return FileResponse(
+        path=str(LATEST_AUSGRID_SUMMARY_FILE),
+        media_type="application/pdf",
+        filename="ausgrid_summary.pdf",
+    )
 
 
 @app.post("/bridgeselect/connector/create-or-edit")
