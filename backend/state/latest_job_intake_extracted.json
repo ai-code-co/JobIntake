@@ -1,9 +1,9 @@
 {
-  "job_id": "9c0765d3",
-  "created_at": "2026-03-27T16:16:05.260441",
+  "job_id": "b07a2de7",
+  "created_at": "2026-03-28T16:41:27.169568",
   "status": "prefilled",
   "source_files": [
-    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\9c0765d3_Solar Proposal for Steven John Baumann at 46 First Street 2752 NSW (7nXgmiWSag).pdf"
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\b07a2de7_Solar Proposal for Steven John Baumann at 46 First Street 2752 NSW (7nXgmiWSag).pdf"
   ],
   "raw_extracted_data": {
     "customer": {
@@ -132,7 +132,7 @@
     "storeyType": "Single story",
     "bstcCount": "420",
     "bstcDiscountOutOfPocket": "$15,540.00",
-    "poNumber": "27032026-10"
+    "poNumber": "28032026-13"
   },
   "ccew_suggestions": {
     "installationStreetNumber": "46",

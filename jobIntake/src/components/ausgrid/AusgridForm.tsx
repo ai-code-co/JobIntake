@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -128,6 +128,7 @@ function Input({
   type = "text",
   error,
   aiSuggested = false,
+  aiApplied = false,
 }: {
   label: string;
   name: keyof AusgridFormState;
@@ -137,6 +138,7 @@ function Input({
   type?: string;
   error?: string;
   aiSuggested?: boolean;
+  aiApplied?: boolean;
 }) {
   return (
     <div>
@@ -146,8 +148,12 @@ function Input({
           {required ? <span className="text-red-600"> *</span> : null}
         </span>
         {aiSuggested ? (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-            Ai suggested
+          <span
+            className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              aiApplied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {aiApplied ? "AI Applied" : "AI Suggested"}
           </span>
         ) : null}
       </label>
@@ -172,6 +178,7 @@ function Select({
   required = true,
   error,
   aiSuggested = false,
+  aiApplied = false,
 }: {
   label: string;
   name: keyof AusgridFormState;
@@ -181,6 +188,7 @@ function Select({
   required?: boolean;
   error?: string;
   aiSuggested?: boolean;
+  aiApplied?: boolean;
 }) {
   return (
     <div>
@@ -190,8 +198,12 @@ function Select({
           {required ? <span className="text-red-600"> *</span> : null}
         </span>
         {aiSuggested ? (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-            Ai suggested
+          <span
+            className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              aiApplied ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {aiApplied ? "AI Applied" : "AI Suggested"}
           </span>
         ) : null}
       </label>
@@ -229,10 +241,7 @@ export default function AusgridForm({
 }: AusgridFormProps) {
   const [state, setState] = useState<AusgridFormState>(INITIAL_STATE);
   const [errors, setErrors] = useState<Partial<Record<keyof AusgridFormState, string>>>({});
-  const [suggestedFields, setSuggestedFields] = useState<Set<keyof AusgridFormState>>(new Set());
-  const [showSuggestedBadges, setShowSuggestedBadges] = useState(false);
   const [appliedSuggestionFields, setAppliedSuggestionFields] = useState<Set<keyof AusgridFormState>>(new Set());
-  const [preAppliedValues, setPreAppliedValues] = useState<Partial<Record<keyof AusgridFormState, string>>>({});
   const [status, setStatus] = useState<AusgridStatus>("idle");
   const [message, setMessage] = useState("");
   const [submitResult, setSubmitResult] = useState<Record<string, unknown> | string | null>(null);
@@ -244,6 +253,13 @@ export default function AusgridForm({
     message: "",
   });
 
+  const lastApplyTokenRef = useRef(0);
+  const lastClearTokenRef = useRef(0);
+  const lastAppliedSuggestionKeysRef = useRef<Set<keyof AusgridFormState>>(new Set());
+  const preApplyValuesRef = useRef<Partial<Record<keyof AusgridFormState, string>>>({});
+  const appliedSuggestionFieldsRef = useRef(appliedSuggestionFields);
+  appliedSuggestionFieldsRef.current = appliedSuggestionFields;
+
   useEffect(() => {
     if (!toast.show) return;
     const t = setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4500);
@@ -251,57 +267,83 @@ export default function AusgridForm({
   }, [toast.show]);
 
   useEffect(() => {
-    if (!suggestedPatch) {
-      setSuggestedFields(new Set());
-      setShowSuggestedBadges(false);
-      return;
+    if (suggestionApplyToken === 0) {
+      lastApplyTokenRef.current = 0;
     }
-    const suggestedKeys = Object.entries(suggestedPatch)
-      .filter(([, v]) => typeof v === "string" && Boolean(v.trim()))
-      .map(([k]) => k as keyof AusgridFormState);
-    setSuggestedFields(new Set(suggestedKeys));
-    setShowSuggestedBadges(suggestedKeys.length > 0);
-  }, [suggestedPatch]);
+  }, [suggestionApplyToken]);
 
   useEffect(() => {
-    if (!suggestedPatch || suggestionApplyToken === 0) return;
-    const appliedSuggestionEntries = Object.entries(suggestedPatch).filter(
-      ([, v]) => typeof v === "string" && Boolean(v.trim()),
-    ) as Array<[keyof AusgridFormState, string]>;
-    const appliedKeys = appliedSuggestionEntries.map(([k]) => k);
-    const previousValues: Partial<Record<keyof AusgridFormState, string>> = {};
-    appliedKeys.forEach((key) => {
-      previousValues[key] = state[key];
-    });
+    if (!suggestedPatch || suggestionApplyToken <= lastApplyTokenRef.current) return;
+    lastApplyTokenRef.current = suggestionApplyToken;
 
-    setState((prev) => ({
-      ...prev,
-      ...Object.fromEntries(appliedSuggestionEntries),
-    }));
-    setAppliedSuggestionFields(new Set(appliedKeys));
-    setPreAppliedValues(previousValues);
-    setShowSuggestedBadges(false);
-    setToast({ show: true, type: "success", message: "Applied suggestions to Ausgrid fields." });
+    const entries = Object.entries(suggestedPatch).filter(
+      ([, v]) => typeof v === "string" && v.trim(),
+    ) as Array<[keyof AusgridFormState, string]>;
+
+    setState((prev) => {
+      const merged = { ...prev };
+      const changedKeys: Array<keyof AusgridFormState> = [];
+      for (const [key, suggested] of entries) {
+        if (!(key in preApplyValuesRef.current)) {
+          preApplyValuesRef.current[key] = prev[key];
+        }
+        merged[key] = suggested.trim();
+        changedKeys.push(key);
+      }
+      if (changedKeys.length === 0) {
+        queueMicrotask(() =>
+          setToast({
+            show: true,
+            type: "success",
+            message: "No new fields to apply — empty fields are filled or values already match the suggestions.",
+          }),
+        );
+        return prev;
+      }
+      lastAppliedSuggestionKeysRef.current = new Set([
+        ...lastAppliedSuggestionKeysRef.current,
+        ...changedKeys,
+      ]);
+      queueMicrotask(() => {
+        setAppliedSuggestionFields((s) => new Set([...s, ...changedKeys]));
+        setToast({
+          show: true,
+          type: "success",
+          message: `Applied ${changedKeys.length} suggested field(s) to the form.`,
+        });
+      });
+      return merged;
+    });
   }, [suggestedPatch, suggestionApplyToken]);
 
   useEffect(() => {
-    if (clearSuggestionToken === 0) return;
-    if (appliedSuggestionFields.size > 0) {
+    if (clearSuggestionToken <= lastClearTokenRef.current) return;
+    lastClearTokenRef.current = clearSuggestionToken;
+    const fromState = appliedSuggestionFieldsRef.current;
+    const toReset =
+      fromState.size > 0 ? fromState : new Set(lastAppliedSuggestionKeysRef.current);
+    if (toReset.size > 0) {
       setState((prev) => {
         const next = { ...prev };
-        appliedSuggestionFields.forEach((field) => {
-          next[field] = preAppliedValues[field] ?? INITIAL_STATE[field];
+        toReset.forEach((field) => {
+          next[field] = preApplyValuesRef.current[field] ?? INITIAL_STATE[field];
         });
         return next;
       });
+      toReset.forEach((field) => {
+        delete preApplyValuesRef.current[field];
+      });
     }
-    setSuggestedFields(new Set());
-    setShowSuggestedBadges(false);
+    lastAppliedSuggestionKeysRef.current = new Set();
     setAppliedSuggestionFields(new Set());
-    setPreAppliedValues({});
   }, [clearSuggestionToken]);
 
-  const isFieldSuggested = (fieldName: keyof AusgridFormState) => showSuggestedBadges && suggestedFields.has(fieldName);
+  const aiBadge = (fieldName: keyof AusgridFormState) => {
+    const patchVal = suggestedPatch?.[fieldName];
+    const aiSuggested = typeof patchVal === "string" && Boolean(patchVal.trim());
+    const aiApplied = appliedSuggestionFields.has(fieldName);
+    return { aiSuggested, aiApplied };
+  };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -416,41 +458,41 @@ export default function AusgridForm({
       <section id="ausgrid-section-1" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm scroll-mt-6">
         <h3 className="text-lg font-semibold text-slate-900">1. Customer Fields</h3>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Input label="Street Name" name="customerStreetName" value={state.customerStreetName} onChange={handleChange} error={errors.customerStreetName} aiSuggested={isFieldSuggested("customerStreetName")} />
-          <Select label="Land Title Type" name="customerLandTitleType" value={state.customerLandTitleType} options={LAND_TITLE_OPTIONS} onChange={handleChange} error={errors.customerLandTitleType} aiSuggested={isFieldSuggested("customerLandTitleType")} />
-          <Select label="Land Zoning" name="customerLandZoning" value={state.customerLandZoning} options={LAND_ZONING_OPTIONS} onChange={handleChange} error={errors.customerLandZoning} aiSuggested={isFieldSuggested("customerLandZoning")} />
-          <Input label="Street Number/RMB" name="customerStreetNumberRmb" value={state.customerStreetNumberRmb} onChange={handleChange} error={errors.customerStreetNumberRmb} aiSuggested={isFieldSuggested("customerStreetNumberRmb")} />
-          <Input label="Postcode" name="customerPostCode" value={state.customerPostCode} onChange={handleChange} error={errors.customerPostCode} aiSuggested={isFieldSuggested("customerPostCode")} />
-          <Select label="Customer Type" name="customerType" value={state.customerType} options={CUSTOMER_TYPE_OPTIONS} onChange={handleChange} error={errors.customerType} aiSuggested={isFieldSuggested("customerType")} />
-          <Select label="Title" name="customerTitle" value={state.customerTitle} options={TITLE_OPTIONS} onChange={handleChange} error={errors.customerTitle} aiSuggested={isFieldSuggested("customerTitle")} />
-          <Input label="Email Address" name="customerEmailAddress" type="email" value={state.customerEmailAddress} onChange={handleChange} error={errors.customerEmailAddress} aiSuggested={isFieldSuggested("customerEmailAddress")} />
-          <Input label="First Name" name="customerFirstName" value={state.customerFirstName} onChange={handleChange} error={errors.customerFirstName} aiSuggested={isFieldSuggested("customerFirstName")} />
-          <Input label="Last Name" name="customerLastName" value={state.customerLastName} onChange={handleChange} error={errors.customerLastName} aiSuggested={isFieldSuggested("customerLastName")} />
-          <Input label="Phone Number" name="customerPhoneNumber" value={state.customerPhoneNumber} onChange={handleChange} error={errors.customerPhoneNumber} aiSuggested={isFieldSuggested("customerPhoneNumber")} />
+          <Input label="Street Name" name="customerStreetName" value={state.customerStreetName} onChange={handleChange} error={errors.customerStreetName} {...aiBadge("customerStreetName")} />
+          <Select label="Land Title Type" name="customerLandTitleType" value={state.customerLandTitleType} options={LAND_TITLE_OPTIONS} onChange={handleChange} error={errors.customerLandTitleType} {...aiBadge("customerLandTitleType")} />
+          <Select label="Land Zoning" name="customerLandZoning" value={state.customerLandZoning} options={LAND_ZONING_OPTIONS} onChange={handleChange} error={errors.customerLandZoning} {...aiBadge("customerLandZoning")} />
+          <Input label="Street Number/RMB" name="customerStreetNumberRmb" value={state.customerStreetNumberRmb} onChange={handleChange} error={errors.customerStreetNumberRmb} {...aiBadge("customerStreetNumberRmb")} />
+          <Input label="Postcode" name="customerPostCode" value={state.customerPostCode} onChange={handleChange} error={errors.customerPostCode} {...aiBadge("customerPostCode")} />
+          <Select label="Customer Type" name="customerType" value={state.customerType} options={CUSTOMER_TYPE_OPTIONS} onChange={handleChange} error={errors.customerType} {...aiBadge("customerType")} />
+          <Select label="Title" name="customerTitle" value={state.customerTitle} options={TITLE_OPTIONS} onChange={handleChange} error={errors.customerTitle} {...aiBadge("customerTitle")} />
+          <Input label="Email Address" name="customerEmailAddress" type="email" value={state.customerEmailAddress} onChange={handleChange} error={errors.customerEmailAddress} {...aiBadge("customerEmailAddress")} />
+          <Input label="First Name" name="customerFirstName" value={state.customerFirstName} onChange={handleChange} error={errors.customerFirstName} {...aiBadge("customerFirstName")} />
+          <Input label="Last Name" name="customerLastName" value={state.customerLastName} onChange={handleChange} error={errors.customerLastName} {...aiBadge("customerLastName")} />
+          <Input label="Phone Number" name="customerPhoneNumber" value={state.customerPhoneNumber} onChange={handleChange} error={errors.customerPhoneNumber} {...aiBadge("customerPhoneNumber")} />
         </div>
       </section>
 
       <section id="ausgrid-section-2" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm scroll-mt-6">
         <h3 className="text-lg font-semibold text-slate-900">2. Applicant Fields</h3>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Select label="Applicant Type" name="applicantType" value={state.applicantType} options={["", ...APPLICANT_TYPE_OPTIONS]} onChange={handleChange} error={errors.applicantType} aiSuggested={isFieldSuggested("applicantType")} />
-          <Select label="Applicant Title" name="applicantTitle" value={state.applicantTitle} options={TITLE_OPTIONS} onChange={handleChange} error={errors.applicantTitle} aiSuggested={isFieldSuggested("applicantTitle")} />
-          <Input label="Applicant First Name" name="applicantFirstName" value={state.applicantFirstName} onChange={handleChange} error={errors.applicantFirstName} aiSuggested={isFieldSuggested("applicantFirstName")} />
-          <Input label="Applicant Last Name" name="applicantLastName" value={state.applicantLastName} onChange={handleChange} error={errors.applicantLastName} aiSuggested={isFieldSuggested("applicantLastName")} />
-          <Input label="Applicant Email Address" name="applicantEmailAddress" type="email" value={state.applicantEmailAddress} onChange={handleChange} error={errors.applicantEmailAddress} aiSuggested={isFieldSuggested("applicantEmailAddress")} />
-          <Input label="Applicant Search By ABN/ACN" name="applicantSearchByAbnAcn" value={state.applicantSearchByAbnAcn} onChange={handleChange} error={errors.applicantSearchByAbnAcn} aiSuggested={isFieldSuggested("applicantSearchByAbnAcn")} />
-          <Input label="Applicant Company Name" name="applicantCompanyName" value={state.applicantCompanyName} onChange={handleChange} error={errors.applicantCompanyName} aiSuggested={isFieldSuggested("applicantCompanyName")} />
-          <Input label="Applicant Street Name" name="applicantStreetName" value={state.applicantStreetName} onChange={handleChange} error={errors.applicantStreetName} aiSuggested={isFieldSuggested("applicantStreetName")} />
-          <Input label="Applicant Suburb" name="applicantSuburb" value={state.applicantSuburb} onChange={handleChange} error={errors.applicantSuburb} aiSuggested={isFieldSuggested("applicantSuburb")} />
-          <Input label="Applicant Post Code" name="applicantPostCode" value={state.applicantPostCode} onChange={handleChange} error={errors.applicantPostCode} aiSuggested={isFieldSuggested("applicantPostCode")} />
-          <Input label="Applicant Phone No" name="applicantPhoneNo" value={state.applicantPhoneNo} onChange={handleChange} error={errors.applicantPhoneNo} aiSuggested={isFieldSuggested("applicantPhoneNo")} />
+          <Select label="Applicant Type" name="applicantType" value={state.applicantType} options={["", ...APPLICANT_TYPE_OPTIONS]} onChange={handleChange} error={errors.applicantType} {...aiBadge("applicantType")} />
+          <Select label="Applicant Title" name="applicantTitle" value={state.applicantTitle} options={TITLE_OPTIONS} onChange={handleChange} error={errors.applicantTitle} {...aiBadge("applicantTitle")} />
+          <Input label="Applicant First Name" name="applicantFirstName" value={state.applicantFirstName} onChange={handleChange} error={errors.applicantFirstName} {...aiBadge("applicantFirstName")} />
+          <Input label="Applicant Last Name" name="applicantLastName" value={state.applicantLastName} onChange={handleChange} error={errors.applicantLastName} {...aiBadge("applicantLastName")} />
+          <Input label="Applicant Email Address" name="applicantEmailAddress" type="email" value={state.applicantEmailAddress} onChange={handleChange} error={errors.applicantEmailAddress} {...aiBadge("applicantEmailAddress")} />
+          <Input label="Applicant Search By ABN/ACN" name="applicantSearchByAbnAcn" value={state.applicantSearchByAbnAcn} onChange={handleChange} error={errors.applicantSearchByAbnAcn} {...aiBadge("applicantSearchByAbnAcn")} />
+          <Input label="Applicant Company Name" name="applicantCompanyName" value={state.applicantCompanyName} onChange={handleChange} error={errors.applicantCompanyName} {...aiBadge("applicantCompanyName")} />
+          <Input label="Applicant Street Name" name="applicantStreetName" value={state.applicantStreetName} onChange={handleChange} error={errors.applicantStreetName} {...aiBadge("applicantStreetName")} />
+          <Input label="Applicant Suburb" name="applicantSuburb" value={state.applicantSuburb} onChange={handleChange} error={errors.applicantSuburb} {...aiBadge("applicantSuburb")} />
+          <Input label="Applicant Post Code" name="applicantPostCode" value={state.applicantPostCode} onChange={handleChange} error={errors.applicantPostCode} {...aiBadge("applicantPostCode")} />
+          <Input label="Applicant Phone No" name="applicantPhoneNo" value={state.applicantPhoneNo} onChange={handleChange} error={errors.applicantPhoneNo} {...aiBadge("applicantPhoneNo")} />
         </div>
       </section>
 
       <section id="ausgrid-section-3" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm scroll-mt-6">
         <h3 className="text-lg font-semibold text-slate-900">3. Service Selection</h3>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Select label="Select Service" name="selectService" value={state.selectService} options={["", ...SERVICE_OPTIONS]} onChange={handleChange} error={errors.selectService} aiSuggested={isFieldSuggested("selectService")} />
+          <Select label="Select Service" name="selectService" value={state.selectService} options={["", ...SERVICE_OPTIONS]} onChange={handleChange} error={errors.selectService} {...aiBadge("selectService")} />
         </div>
       </section>
 

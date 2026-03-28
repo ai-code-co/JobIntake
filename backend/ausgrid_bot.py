@@ -603,9 +603,12 @@ def     fill_location(data: dict[str, Any]) -> dict[str, Any]:
                 #         raise RuntimeError("Failed to select Retailer.")
 
                 # Click Next / Save & Next -> Applicant
+                print("606 next")
                 next_btn = page.get_by_role("button", name="Next").or_(page.get_by_role("button", name="Save & Next")).first
                 if next_btn.count() > 0:
+                    print("609",next_btn.count())
                     next_btn.click()
+                    print("611")
                     applicantType = _v(data, "applicantType")
                     applicantTitle = _v(data,"applicantTitle")
                     # asp_number = _v(data, "aspNumber")

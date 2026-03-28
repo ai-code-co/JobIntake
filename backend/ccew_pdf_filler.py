@@ -161,6 +161,10 @@ def _iso_to_ddmmyyyy(value: Any) -> str:
     return s
 
 
+# Form keys whose UI uses <input type="date"> (YYYY-MM-DD); PDF expects DD/MM/YYYY.
+_ISO_DATE_TEXT_KEYS = frozenset({"testCompletedOn", "installerQualifiedSupervisorsExpiry"})
+
+
 def _build_pdf_values(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Build pdf_field_name -> value for all fields. Checkboxes use Yes/Off."""
     out: Dict[str, Any] = {}
@@ -169,7 +173,7 @@ def _build_pdf_values(payload: Dict[str, Any]) -> Dict[str, Any]:
         val = payload.get(form_key)
         if val is None:
             continue
-        if form_key == "testCompletedOn":
+        if form_key in _ISO_DATE_TEXT_KEYS:
             out[pdf_name] = _iso_to_ddmmyyyy(val)
         else:
             out[pdf_name] = str(val).strip() if val else ""

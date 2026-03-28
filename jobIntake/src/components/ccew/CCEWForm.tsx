@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 /** All fields required or used by the CCEW (Certificate Compliance Electrical Work) PDF. */
 export interface CCEWFormState {
@@ -374,6 +374,8 @@ export interface CCEWFormProps {
   ccewSuggestions?: Record<string, unknown> | null;
   /** Called when user clears CCEW suggestions (so parent can clear stored suggestions). */
   onClearCcewSuggestions?: () => void;
+  /** Per-section completion for job intake sidebar (Done / filled–total), like BridgeSelect / Ausgrid. */
+  onSectionProgressChange?: (progress: Record<string, { filled: number; total: number }>) => void;
   onBack: () => void;
 }
 
@@ -383,6 +385,13 @@ type CCEWFieldKey = keyof CCEWFormState;
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 type PdfStatus = "idle" | "generating" | "success" | "error";
+
+/** If user types in either contractor field, contractor pair is required and QS pair is optional. */
+export function getInstallerLicenseBranch(c: CCEWFormState): "qualified" | "contractor" {
+  const t = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  if (t(c.installerContractorLicenseNo) || t(c.installerContractorLicenseExpiry)) return "contractor";
+  return "qualified";
+}
 
 function validateRequiredFields(ccew: CCEWFormState): string | null {
   const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -422,12 +431,15 @@ function validateRequiredFields(ccew: CCEWFormState): string | null {
   if (!s(ccew.installerSuburb)) return "Installer Suburb is required.";
   if (!s(ccew.installerState)) return "Installer State is required.";
   if (!s(ccew.installerPostCode)) return "Installer Post Code is required.";
-  const hasQualified =
-    s(ccew.installerQualifiedSupervisorsNo) && s(ccew.installerQualifiedSupervisorsExpiry);
-  const hasContractor =
-    s(ccew.installerContractorLicenseNo) && s(ccew.installerContractorLicenseExpiry);
-  if (!hasQualified && !hasContractor)
-    return "Provide either Qualified Supervisors No. + Expiry or Contractor's License No. + Expiry.";
+
+  const branch = getInstallerLicenseBranch(ccew);
+  if (branch === "contractor") {
+    if (!s(ccew.installerContractorLicenseNo)) return "Contractor's License No. is required.";
+    if (!s(ccew.installerContractorLicenseExpiry)) return "Expiry Date (Contractor's License) is required.";
+  } else {
+    if (!s(ccew.installerQualifiedSupervisorsNo)) return "Qualified Supervisors No. is required.";
+    if (!s(ccew.installerQualifiedSupervisorsExpiry)) return "Expiry Date (Qualified Supervisors) is required.";
+  }
 
   if (!s(ccew.testCompletedOn)) return "The test was completed on (date) is required.";
 
@@ -440,7 +452,127 @@ function validateRequiredFields(ccew: CCEWFormState): string | null {
   return null;
 }
 
-export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSuggestions, onBack }: CCEWFormProps) {
+/** Sidebar progress aligned with `validateRequiredFields` and section layout (`ccew-section-*`). */
+export function computeCcewSectionProgress(c: CCEWFormState): Record<string, { filled: number; total: number }> {
+  const s = (v: unknown) => (typeof v === "string" ? v.trim().length > 0 : false);
+
+  const sec1Keys: (keyof CCEWFormState)[] = [
+    "installationStreetName",
+    "installationSuburb",
+    "installationState",
+    "installationPostCode",
+  ];
+  const sec1Filled = sec1Keys.filter((k) => s(c[k])).length;
+
+  const sec2Keys: (keyof CCEWFormState)[] = [
+    "customerFirstName",
+    "customerLastName",
+    "customerStreetNumber",
+    "customerStreetName",
+    "customerSuburb",
+    "customerState",
+    "customerPostCode",
+  ];
+  const sec2Filled = sec2Keys.filter((k) => s(c[k])).length;
+
+  const hasType =
+    c.typeResidential ||
+    c.typeCommercial ||
+    c.typeIndustrial ||
+    c.typeRural ||
+    c.typeMixedDevelopment;
+  const hasWork =
+    c.workNewWork ||
+    c.workAdditionAlteration ||
+    c.workInstalledMeter ||
+    c.workInstallAdvancedMeter ||
+    c.workNetworkConnection ||
+    c.workEvConnection ||
+    c.reInspectionNonCompliant;
+  const sec3Filled = (hasType ? 1 : 0) + (hasWork ? 1 : 0);
+
+  const equipmentRows: ReadonlyArray<
+    readonly [keyof CCEWFormState, keyof CCEWFormState, keyof CCEWFormState, keyof CCEWFormState]
+  > = [
+    ["equipmentGenerationChecked", "equipmentGenerationRating", "equipmentGenerationNumber", "equipmentGenerationParticulars"],
+    ["equipmentStorageChecked", "equipmentStorageRating", "equipmentStorageNumber", "equipmentStorageParticulars"],
+    ["equipmentSwitchboardChecked", "equipmentSwitchboardRating", "equipmentSwitchboardNumber", "equipmentSwitchboardParticulars"],
+    ["equipmentCircuitsChecked", "equipmentCircuitsRating", "equipmentCircuitsNumber", "equipmentCircuitsParticulars"],
+    ["equipmentLightingChecked", "equipmentLightingRating", "equipmentLightingNumber", "equipmentLightingParticulars"],
+    ["equipmentSocketOutletsChecked", "equipmentSocketOutletsRating", "equipmentSocketOutletsNumber", "equipmentSocketOutletsParticulars"],
+    ["equipmentAppliancesChecked", "equipmentAppliancesRating", "equipmentAppliancesNumber", "equipmentAppliancesParticulars"],
+  ];
+  let sec4Filled = 0;
+  for (const [chk, rk, nk, pk] of equipmentRows) {
+    const checked = Boolean(c[chk]);
+    if (!checked) sec4Filled += 1;
+    else if (s(c[rk]) && s(c[nk]) && s(c[pk])) sec4Filled += 1;
+  }
+
+  let sec5Filled = 0;
+  if (c.meterIncreasedLoadWithinCapacity === "Yes" || c.meterIncreasedLoadWithinCapacity === "No") sec5Filled += 1;
+  if (c.meterWorkConnectedToSupply === "Yes" || c.meterWorkConnectedToSupply === "No") sec5Filled += 1;
+
+  const instKeys: (keyof CCEWFormState)[] = [
+    "installerFirstName",
+    "installerLastName",
+    "installerStreetNumber",
+    "installerStreetName",
+    "installerSuburb",
+    "installerState",
+    "installerPostCode",
+  ];
+  const instFilled = instKeys.filter((k) => s(c[k])).length;
+  const branch = getInstallerLicenseBranch(c);
+  const licenseFilled =
+    branch === "contractor"
+      ? (s(c.installerContractorLicenseNo) ? 1 : 0) + (s(c.installerContractorLicenseExpiry) ? 1 : 0)
+      : (s(c.installerQualifiedSupervisorsNo) ? 1 : 0) + (s(c.installerQualifiedSupervisorsExpiry) ? 1 : 0);
+  const sec6Filled = instFilled + licenseFilled;
+
+  const testCheckKeys: (keyof CCEWFormState)[] = [
+    "testEarthingSystemIntegrity",
+    "testRcdOperational",
+    "testInsulationResistance",
+    "testVisualCheckSuitable",
+    "testPolarity",
+    "testStandAloneAs4509",
+    "testCorrectCurrentConnections",
+    "testFaultLoopImpedance",
+  ];
+  let sec7Filled = s(c.testCompletedOn) ? 1 : 0;
+  sec7Filled += testCheckKeys.filter((k) => c[k] === true).length;
+
+  const sec8Filled = c.testerSameAsInstaller || s(c.testerEmail) ? 1 : 0;
+
+  let sec9Filled = 0;
+  if (s(c.energyProvider)) sec9Filled += 1;
+  if (s(c.ownerEmail)) sec9Filled += 1;
+
+  return {
+    "ccew-section-1": { filled: sec1Filled, total: 4 },
+    "ccew-section-2": { filled: sec2Filled, total: 7 },
+    "ccew-section-3": { filled: sec3Filled, total: 2 },
+    "ccew-section-4": { filled: sec4Filled, total: equipmentRows.length },
+    "ccew-section-5": { filled: sec5Filled, total: 2 },
+    "ccew-section-6": { filled: sec6Filled, total: 9 },
+    "ccew-section-7": { filled: sec7Filled, total: 9 },
+    "ccew-section-8": { filled: sec8Filled, total: 1 },
+    "ccew-section-9": { filled: sec9Filled, total: 2 },
+  };
+}
+
+export function getDefaultCcewSectionProgress(): Record<string, { filled: number; total: number }> {
+  return computeCcewSectionProgress(defaultCCEWState);
+}
+
+export default function CCEWForm({
+  initialValues,
+  ccewSuggestions,
+  onClearCcewSuggestions,
+  onSectionProgressChange,
+  onBack,
+}: CCEWFormProps) {
   const [pdfStatus, setPdfStatus] = useState<PdfStatus>("idle");
   const [pdfError, setPdfError] = useState<string>("");
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
@@ -519,6 +651,10 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
     }));
   };
 
+  const installerLicenseBranch = useMemo(() => getInstallerLicenseBranch(ccew), [ccew]);
+  const requireQualifiedSupervisorsPair = installerLicenseBranch === "qualified";
+  const requireContractorLicensePair = installerLicenseBranch === "contractor";
+
   const hasCcewSuggestions = ccewSuggestions && Object.keys(ccewSuggestions).length > 0;
   const suggestedFieldKeySet = useMemo(() => {
     const next = new Set<CCEWFieldKey>();
@@ -559,6 +695,13 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
     setAppliedSuggestionFields(new Set());
     onClearCcewSuggestions?.();
   };
+
+  const sectionProgress = useMemo(() => computeCcewSectionProgress(ccew), [ccew]);
+  const sectionCbRef = useRef(onSectionProgressChange);
+  sectionCbRef.current = onSectionProgressChange;
+  useEffect(() => {
+    sectionCbRef.current?.(sectionProgress);
+  }, [sectionProgress]);
 
   useEffect(() => {
     if (!toast.show) return;
@@ -677,14 +820,27 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           {pdfStatus === "generating" && (
             <span className="text-sm text-slate-600">Generating PDF…</span>
           )}
-          {pdfStatus === "success" && (
-            <span className="text-sm text-green-700">PDF ready. Download below.</span>
-          )}
           {pdfStatus === "error" && (
             <span className="text-sm text-red-600">Failed to generate PDF: {pdfError}</span>
           )}
         </div>
       </section>
+
+      {pdfStatus === "success" && pdfBlobUrl ? (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-emerald-900">CCEW Summary PDF</h3>
+          <p className="mt-1 text-sm text-emerald-800">
+            The filled PDF was generated by the backend and is ready for you.
+          </p>
+          <a
+            href={pdfBlobUrl}
+            download="CCEW-filled.pdf"
+            className="mt-4 inline-flex items-center rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+          >
+            Download CCEW Summary
+          </a>
+        </section>
+      ) : null}
 
       <CCEWSection id="ccew-section-1" title="1. Installation Address" subtitle="Property where electrical work is carried out. Fields marked with a red * are required by the PDF.">
         <div className="md:col-span-2 xl:col-span-3">
@@ -946,7 +1102,11 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         </div>
       </CCEWSection>
 
-      <CCEWSection id="ccew-section-6" title="6. Installers License Details" subtitle="Required: Qualified Supervisors No. + Expiry OR Contractor's License No. + Expiry.">
+      <CCEWSection
+        id="ccew-section-6"
+        title="6. Installers License Details"
+        subtitle="By default, Qualified Supervisors No. + Expiry are required. If you enter either contractor license field, Contractor's License No. + Expiry become required instead."
+      >
         <div>
           <Label required>First Name</Label>
           <input type="text" name="installerFirstName" value={ccew.installerFirstName} onChange={handleChange} placeholder="David" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
@@ -1004,20 +1164,20 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
           <input type="text" name="installerMobileNo" value={ccew.installerMobileNo} onChange={handleChange} placeholder="—" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Qualified Supervisors No.</Label>
+          <Label required={requireQualifiedSupervisorsPair}>Qualified Supervisors No.</Label>
           <input type="text" name="installerQualifiedSupervisorsNo" value={ccew.installerQualifiedSupervisorsNo} onChange={handleChange} placeholder="—" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Expiry Date (Qualified Supervisors)</Label>
-          <input type="text" name="installerQualifiedSupervisorsExpiry" value={ccew.installerQualifiedSupervisorsExpiry} onChange={handleChange} placeholder="DD/MM/YYYY" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
+          <Label required={requireQualifiedSupervisorsPair}>Expiry Date (Qualified Supervisors)</Label>
+          <input type="date" name="installerQualifiedSupervisorsExpiry" value={ccew.installerQualifiedSupervisorsExpiry} onChange={handleChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div className="md:col-span-2 xl:col-span-3 text-sm text-slate-500">Or</div>
         <div>
-          <Label required>Contractor's License No.</Label>
+          <Label required={requireContractorLicensePair}>Contractor's License No.</Label>
           <input type="text" name="installerContractorLicenseNo" value={ccew.installerContractorLicenseNo} onChange={handleChange} placeholder="310773C" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
         <div>
-          <Label required>Expiry Date (Contractor's License)</Label>
+          <Label required={requireContractorLicensePair}>Expiry Date (Contractor's License)</Label>
           <input type="text" name="installerContractorLicenseExpiry" value={ccew.installerContractorLicenseExpiry} onChange={handleChange} placeholder="DD/MM/YYYY" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white" />
         </div>
       </CCEWSection>
@@ -1126,17 +1286,6 @@ export default function CCEWForm({ initialValues, ccewSuggestions, onClearCcewSu
         </div>
       </CCEWSection>
 
-      {pdfStatus === "success" && pdfBlobUrl && (
-        <CCEWSection title="Download filled PDF" subtitle="Your filled CCEW PDF is ready.">
-          <a
-            href={pdfBlobUrl}
-            download="CCEW-filled.pdf"
-            className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            Download CCEW PDF
-          </a>
-        </CCEWSection>
-      )}
     </div>
   );
 }
