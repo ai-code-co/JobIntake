@@ -22,7 +22,7 @@ AUSGRID_FAILURES_DIR = STATE_DIR / "ausgrid_failures"
 
 AUSGRID_BASE_URL = os.getenv("AUSGRID_BASE_URL", "https://idoportal.ausgrid.com.au")
 LOCATION_URL = f"{AUSGRID_BASE_URL}/#/existingbelow100/location/new/0"
-HEADED = os.getenv("AUSGRID_HEADED", "true").strip().lower() in ("1", "true", "yes")
+HEADED = os.getenv("AUSGRID_HEADED", "false").strip().lower() in ("1", "true", "yes")
 FORM_WAIT_TIMEOUT_MS = int(os.getenv("AUSGRID_FORM_TIMEOUT_MS", "30000"))
 FILL_TIMEOUT_MS = 5000
 
