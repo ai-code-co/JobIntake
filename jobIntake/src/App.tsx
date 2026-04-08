@@ -5,6 +5,8 @@ import JobIntakeForm from "./components/JobIntakeForm";
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
 import { supabase } from "./lib/supabase";
+import LarkFillJobSheetPage from "./components/larkFillJobSheet/LarkFillJobSheetPage";
+import LarkJobSheetPage from "./components/larkJobSheet/larkJobSheetPage";
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -45,6 +47,8 @@ function App() {
       <Route path="/login" element={session ? <Navigate to="/intake" replace /> : <LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/intake" element={session ? <JobIntakeForm /> : <Navigate to="/login" replace />} />
+      <Route path="/jobsheet" element={<LarkJobSheetPage />} />
+      <Route path="/jobsheet/fill" element={<LarkFillJobSheetPage />} />
       <Route path="*" element={<Navigate to={session ? "/intake" : "/login"} replace />} />
     </Routes>
   );

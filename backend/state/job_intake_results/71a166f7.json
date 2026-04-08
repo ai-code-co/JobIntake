@@ -1,0 +1,167 @@
+{
+  "job_id": "71a166f7",
+  "created_at": "2026-04-06T15:01:14.723991",
+  "status": "prefilled",
+  "source_files": [
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\71a166f7_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
+  ],
+  "raw_extracted_data": {
+    "customer": {
+      "full_name": "Slawomir Postek",
+      "first_name": "Slawomir",
+      "last_name": "Postek",
+      "title": "",
+      "email": "slav_p@hotmail.com",
+      "mobile": "0412417344",
+      "phone": "",
+      "owner_type": ""
+    },
+    "address": {
+      "full_address": "4 Jardine Court Sandhurst VIC 3977",
+      "street_address": "4 Jardine Court",
+      "street_number_rmb": "4",
+      "land_title_type": "",
+      "suburb": "Sandhurst",
+      "state": "VIC",
+      "postcode": "3977",
+      "property_type": ""
+    },
+    "utility": {
+      "nmi": "",
+      "electricity_retailer": "",
+      "electricity_distributor": "United Energy Distribution",
+      "account_holder_name": "",
+      "bill_issue_date": ""
+    },
+    "system": {
+      "panel": [],
+      "inverter": [
+        {
+          "manufacturer": "Hoymiles",
+          "series": "",
+          "model": "HYS-5.0LV-AUG1",
+          "quantity": "1"
+        }
+      ],
+      "battery": [
+        {
+          "manufacturer": "UZ Energy",
+          "series": "PLPA-L1",
+          "model": "PLPA-L1-10K2",
+          "quantity": "5",
+          "capacity_kwh": "10.24"
+        }
+      ]
+    },
+    "installation": {
+      "installation_style": "",
+      "installation_date": "20th Feb 2026",
+      "existing_solar_retained": "",
+      "backup_protection_required": "Yes",
+      "special_site_notes": "",
+      "customer_instructions": "",
+      "storey_type": "1"
+    },
+    "operations": {
+      "installer_name": "",
+      "designer_name": "",
+      "electrician_name": "",
+      "operations_contact": "",
+      "operations_email": ""
+    },
+    "logistics": {
+      "pickup_location": "",
+      "pickup_contact_person": "",
+      "pickup_contact_number": "",
+      "pickup_hours": "",
+      "pickup_sales_order_reference": ""
+    },
+    "references": {
+      "crm_id": "",
+      "po_number": "",
+      "order_reference": "",
+      "proposal_number": "",
+      "retailer_entity_name": "",
+      "stc_trader_name": ""
+    },
+    "bstc": {
+      "bstc_count": "420",
+      "bstc_out_of_pocket": "$15,540.00"
+    },
+    "pricing": {
+      "total_incl_gst": "$4,600.00",
+      "included_gst": "$1,830.91",
+      "bstc_discount_amount": ""
+    },
+    "notes": ""
+  },
+  "mapped_form_suggestions": {
+    "firstName": "Slawomir",
+    "lastName": "Postek",
+    "customerFullName": "Slawomir Postek",
+    "title": "Mr",
+    "email": "slav_p@hotmail.com",
+    "mobile": "0412417344",
+    "streetAddress": "4 Jardine Court",
+    "suburb": "Sandhurst",
+    "state": "VIC",
+    "postcode": "3977",
+    "installationAddress": "4 Jardine Court",
+    "installationSuburb": "Sandhurst",
+    "installationState": "VIC",
+    "installationPostcode": "3977",
+    "installationStreetName": "Jardine Court",
+    "streetNumberRmb": "4",
+    "electricityRetailer": "United Energy Distribution",
+    "accountHolderName": "Slawomir Postek",
+    "inverterIncluded": true,
+    "inverterManufacturer": "Hoymiles",
+    "inverterModel": "HYS-5.0LV-AUG1",
+    "inverterQuantity": "1",
+    "batteryIncluded": true,
+    "batteryManufacturer": "UZ Energy",
+    "batterySeries": "PLPA-L1",
+    "batteryModel": "PLPA-L1-10K2",
+    "batteryQuantity": "5",
+    "batteryCapacity": "10.24",
+    "batteryInstallationLocation": "Outdoor",
+    "jobType": "Battery Only",
+    "workType": "STC Battery",
+    "backupProtectionRequired": "Yes",
+    "storeyType": "Single story",
+    "bstcCount": "420",
+    "bstcDiscountOutOfPocket": "$15,540.00",
+    "poNumber": "06042026-1"
+  },
+  "ccew_suggestions": {
+    "installationStreetNumber": "4",
+    "installationStreetName": "Jardine Court",
+    "installationSuburb": "Sandhurst",
+    "installationState": "VIC",
+    "installationPostCode": "3977",
+    "installationPropertyName": "4 Jardine Court Sandhurst VIC 3977",
+    "customerSameAsInstallation": true,
+    "customerFirstName": "Slawomir",
+    "customerLastName": "Postek",
+    "customerStreetNumber": "4",
+    "customerStreetName": "Jardine Court",
+    "customerSuburb": "Sandhurst",
+    "customerState": "VIC",
+    "customerPostCode": "3977",
+    "customerEmail": "slav_p@hotmail.com",
+    "ownerEmail": "slav_p@hotmail.com",
+    "customerMobileNo": "0412417344",
+    "typeResidential": true,
+    "workAdditionAlteration": true,
+    "equipmentGenerationChecked": true,
+    "equipmentGenerationRating": "5kW",
+    "equipmentGenerationNumber": "1",
+    "equipmentGenerationParticulars": "HYS-5.0LV-AUG1",
+    "equipmentStorageChecked": true,
+    "equipmentStorageRating": "10.24",
+    "equipmentStorageNumber": "5",
+    "equipmentStorageParticulars": "PLPA-L1-10K2",
+    "energyProvider": "United Energy Distribution"
+  },
+  "unmapped_notes": []
+}

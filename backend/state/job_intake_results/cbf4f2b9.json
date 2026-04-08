@@ -1,0 +1,167 @@
+{
+  "job_id": "cbf4f2b9",
+  "created_at": "2026-04-03T13:16:45.057311",
+  "status": "prefilled",
+  "source_files": [
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\cbf4f2b9_Solar Proposal for Steven John Baumann at 46 First Street 2752 NSW (7nXgmiWSag).pdf"
+  ],
+  "raw_extracted_data": {
+    "customer": {
+      "full_name": "Steven John Baumann",
+      "first_name": "Steven",
+      "last_name": "Baumann",
+      "title": "",
+      "email": "steven.jaye.baumann@hotmail.com",
+      "mobile": "0408493718",
+      "phone": "",
+      "owner_type": ""
+    },
+    "address": {
+      "full_address": "46 First Street, Warragamba NSW 2752",
+      "street_address": "46 First Street",
+      "street_number_rmb": "46",
+      "land_title_type": "",
+      "suburb": "Warragamba",
+      "state": "NSW",
+      "postcode": "2752",
+      "property_type": ""
+    },
+    "utility": {
+      "nmi": "",
+      "electricity_retailer": "",
+      "electricity_distributor": "Endeavour Energy",
+      "account_holder_name": "",
+      "bill_issue_date": ""
+    },
+    "system": {
+      "panel": [],
+      "inverter": [
+        {
+          "manufacturer": "Hoymiles",
+          "series": "HYS-LV",
+          "model": "HYS-5.0LV-AUG1",
+          "quantity": "1"
+        }
+      ],
+      "battery": [
+        {
+          "manufacturer": "UZ Energy",
+          "series": "PLPA-L1",
+          "model": "PLPA-L1-10K2",
+          "quantity": "5",
+          "capacity_kwh": "10.24"
+        }
+      ]
+    },
+    "installation": {
+      "installation_style": "",
+      "installation_date": "20th Feb 2026",
+      "existing_solar_retained": "",
+      "backup_protection_required": "",
+      "special_site_notes": "",
+      "customer_instructions": "",
+      "storey_type": "1"
+    },
+    "operations": {
+      "installer_name": "",
+      "designer_name": "",
+      "electrician_name": "",
+      "operations_contact": "",
+      "operations_email": ""
+    },
+    "logistics": {
+      "pickup_location": "",
+      "pickup_contact_person": "",
+      "pickup_contact_number": "",
+      "pickup_hours": "",
+      "pickup_sales_order_reference": ""
+    },
+    "references": {
+      "crm_id": "",
+      "po_number": "",
+      "order_reference": "",
+      "proposal_number": "",
+      "retailer_entity_name": "",
+      "stc_trader_name": ""
+    },
+    "bstc": {
+      "bstc_count": "420",
+      "bstc_out_of_pocket": "$15,540.00"
+    },
+    "pricing": {
+      "total_incl_gst": "$4,400.00",
+      "included_gst": "$1,812.73",
+      "bstc_discount_amount": ""
+    },
+    "notes": ""
+  },
+  "mapped_form_suggestions": {
+    "firstName": "Steven",
+    "lastName": "Baumann",
+    "customerFullName": "Steven John Baumann",
+    "title": "Mr",
+    "email": "steven.jaye.baumann@hotmail.com",
+    "mobile": "0408493718",
+    "streetAddress": "46 First Street",
+    "suburb": "Warragamba",
+    "state": "NSW",
+    "postcode": "2752",
+    "installationAddress": "46 First Street",
+    "installationSuburb": "Warragamba",
+    "installationState": "NSW",
+    "installationPostcode": "2752",
+    "installationStreetName": "First Street",
+    "streetNumberRmb": "46",
+    "electricityRetailer": "Endeavour Energy",
+    "accountHolderName": "Steven John Baumann",
+    "inverterIncluded": true,
+    "inverterManufacturer": "Hoymiles",
+    "inverterSeries": "HYS-LV",
+    "inverterModel": "HYS-5.0LV-AUG1",
+    "inverterQuantity": "1",
+    "batteryIncluded": true,
+    "batteryManufacturer": "UZ Energy",
+    "batterySeries": "PLPA-L1",
+    "batteryModel": "PLPA-L1-10K2",
+    "batteryQuantity": "5",
+    "batteryCapacity": "10.24",
+    "batteryInstallationLocation": "Outdoor",
+    "jobType": "Battery Only",
+    "workType": "STC Battery",
+    "storeyType": "Single story",
+    "bstcCount": "420",
+    "bstcDiscountOutOfPocket": "$15,540.00",
+    "poNumber": "03042026-1"
+  },
+  "ccew_suggestions": {
+    "installationStreetNumber": "46",
+    "installationStreetName": "First Street",
+    "installationSuburb": "Warragamba",
+    "installationState": "NSW",
+    "installationPostCode": "2752",
+    "installationPropertyName": "46 First Street, Warragamba NSW 2752",
+    "customerSameAsInstallation": true,
+    "customerFirstName": "Steven",
+    "customerLastName": "Baumann",
+    "customerStreetNumber": "46",
+    "customerStreetName": "First Street",
+    "customerSuburb": "Warragamba",
+    "customerState": "NSW",
+    "customerPostCode": "2752",
+    "customerEmail": "steven.jaye.baumann@hotmail.com",
+    "ownerEmail": "steven.jaye.baumann@hotmail.com",
+    "customerMobileNo": "0408493718",
+    "typeResidential": true,
+    "workAdditionAlteration": true,
+    "equipmentGenerationChecked": true,
+    "equipmentGenerationRating": "5kW",
+    "equipmentGenerationNumber": "1",
+    "equipmentGenerationParticulars": "HYS-5.0LV-AUG1",
+    "equipmentStorageChecked": true,
+    "equipmentStorageRating": "10.24",
+    "equipmentStorageNumber": "5",
+    "equipmentStorageParticulars": "PLPA-L1-10K2",
+    "energyProvider": "Endeavour Energy"
+  },
+  "unmapped_notes": []
+}

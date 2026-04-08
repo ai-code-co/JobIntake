@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+.testForm {
+    border: 1px solid black;
+    /* transition: background-color 1s ease-in-out 0.5s; */
+    height:500px;
+    animation:testFormAnimation 1s ease-in-out 10s infinite alternate;
+}
+/* .testForm:hover{
+    transform : translateY(20px);
+} */
+@keyframes moveBox {
+    0% {
+      transform: translateX(0);
+      background-color: red;
+    }
+    100% {
+      transform: translateX(200px);
+      background-color: blue;
+    }
+  }

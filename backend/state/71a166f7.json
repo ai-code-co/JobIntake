@@ -1,0 +1,10 @@
+{
+  "job_id": "71a166f7",
+  "status": "prefilled",
+  "ts": 1775467874.7273233,
+  "message": "Extraction completed. Suggestions are ready.",
+  "source_files": [
+    "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\temp\\71a166f7_Solar Proposal for Slawomir Postek at 4 Jardine Court 3977 VIC (bS4VVrFbpQ).pdf"
+  ],
+  "result_file": "C:\\Users\\Mr. Abhishek\\OneDrive\\Documents\\Excellence\\greendeal-automation-openclaw\\backend\\state\\job_intake_results\\71a166f7.json"
+}
